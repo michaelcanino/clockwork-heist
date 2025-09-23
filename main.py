@@ -127,7 +127,7 @@ class CityAgent:
 
 class GameManager:
     def __init__(self):
-        with open('game_data.json', 'r') as f:
+        with open('game_data.json', 'r', encoding='utf-8') as f:
             self.game_data = json.load(f)
 
         self.city_agent = CityAgent(self.game_data['player'])
@@ -144,30 +144,39 @@ class GameManager:
         print("Welcome to The Clockwork Heist!")
         print("="*30)
 
-        # Automated test run for MVP verification
-        print("\n--- Automated Test Run ---")
-
         # 1. Choose Heist
-        chosen_heist_id = "heist_1"
-        print(f"\nChosen Heist: {self.heist_agent.heists[chosen_heist_id]['name']}")
+        print("\nAvailable Heists:")
+        for heist_id, heist in self.heist_agent.heists.items():
+            print(f"  [{heist_id}] {heist['name']} (Difficulty: {heist['difficulty']})")
+
+        chosen_heist_id = input("Choose a heist to attempt: ")
+        if chosen_heist_id not in self.heist_agent.heists:
+            print("Invalid heist ID. Exiting.")
+            return
 
         # 2. Select Crew
-        chosen_crew_ids = ["rogue_1", "mage_1"]
-        print("\nChosen Crew:")
-        for crew_id in chosen_crew_ids:
-            crew_member = self.crew_agent.get_crew_member(crew_id)
-            print(f"  - {crew_member['name']} ({crew_member['role']})")
+        print("\nAvailable Crew Members:")
+        for crew_id, crew in self.crew_agent.crew_members.items():
+            print(f"  [{crew_id}] {crew['name']} ({crew['role']})")
+
+        chosen_crew_ids_str = input("Select your crew (e.g., rogue_1,mage_1): ")
+        chosen_crew_ids = [c.strip() for c in chosen_crew_ids_str.split(',')]
 
         # 3. Assign Tools
-        tool_assignments = {
-            "rogue_1": "tool_lockpick",
-            "mage_1": "tool_rune"
-        }
-        print("\nTool Assignments:")
-        for crew_id, tool_id in tool_assignments.items():
+        tool_assignments = {}
+        print("\nAvailable Tools:")
+        for tool_id, tool in self.tool_agent.tools.items():
+            print(f"  [{tool_id}] {tool['name']} (Usable by: {', '.join(tool['usable_by'])})")
+
+        for crew_id in chosen_crew_ids:
             crew_member = self.crew_agent.get_crew_member(crew_id)
-            tool = self.tool_agent.tools[tool_id]
-            print(f"  - {crew_member['name']} gets {tool['name']}")
+            if not crew_member: continue
+
+            tool_id = input(f"Assign a tool to {crew_member['name']} (or press Enter to skip): ")
+            if tool_id in self.tool_agent.tools and self.tool_agent.validate_tool_usage(tool_id, crew_member['role']):
+                tool_assignments[crew_id] = tool_id
+            elif tool_id:
+                print("Invalid or unusable tool. Skipping assignment.")
 
         # 4. Run Heist
         self.heist_agent.run_heist(chosen_heist_id, chosen_crew_ids, tool_assignments)
