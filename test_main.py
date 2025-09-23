@@ -10,11 +10,13 @@ class TestGameAgents(unittest.TestCase):
             "crew_members": [
                 {
                     "id": "rogue_1", "name": "Silas", "role": "Rogue",
-                    "skills": {"stealth": 5, "lockpicking": 4, "combat": 2, "magic": 0}
+                    "skills": {"stealth": 5, "lockpicking": 4, "combat": 2, "magic": 0},
+                    "xp": 0, "level": 1, "upgrades": []
                 },
                 {
                     "id": "mage_1", "name": "Lyra", "role": "Mage",
-                    "skills": {"stealth": 2, "lockpicking": 0, "combat": 3, "magic": 5}
+                    "skills": {"stealth": 2, "lockpicking": 0, "combat": 3, "magic": 5},
+                    "xp": 0, "level": 1, "upgrades": []
                 }
             ],
             "tools": [
@@ -30,14 +32,17 @@ class TestGameAgents(unittest.TestCase):
                     "potential_loot": [{"item": "Dagger", "value": 100}]
                 }
             ],
-            "player": {"starting_notoriety": 0, "starting_loot": []}
+            "player": {"starting_notoriety": 0, "starting_loot": [], "reputation": {"fear": 0, "respect": 0}},
+            "progression": {"xp_thresholds": [0, 10, 25, 50]},
+            "special_events": []
         }
-        self.crew_agent = main.CrewAgent(self.game_data['crew_members'])
+        self.crew_agent = main.CrewAgent(self.game_data['crew_members'], self.game_data['progression'])
         self.tool_agent = main.ToolAgent(self.game_data['tools'])
         self.city_agent = main.CityAgent(self.game_data['player'])
         self.heist_agent = main.HeistAgent(
             self.game_data['heists'],
-            self.game_data.get('random_events', []), # Updated for Phase 2
+            self.game_data.get('random_events', []),
+            self.game_data['special_events'],
             self.crew_agent,
             self.tool_agent,
             self.city_agent
@@ -47,14 +52,14 @@ class TestGameAgents(unittest.TestCase):
     @patch('random.randint', return_value=5)
     def test_perform_skill_check_success(self, mock_randint):
         """Test a successful skill check."""
-        success = self.crew_agent.perform_skill_check('rogue_1', 'stealth', 10)
-        self.assertTrue(success)
+        result = self.crew_agent.perform_skill_check('rogue_1', 'stealth', 10)
+        self.assertEqual(result, main.CrewAgent.SUCCESS)
 
-    @patch('random.randint', return_value=4)
+    @patch('random.randint', return_value=2)
     def test_perform_skill_check_failure(self, mock_randint):
         """Test a failed skill check."""
-        success = self.crew_agent.perform_skill_check('rogue_1', 'stealth', 10)
-        self.assertFalse(success)
+        result = self.crew_agent.perform_skill_check('rogue_1', 'stealth', 10)
+        self.assertEqual(result, main.CrewAgent.FAILURE)
 
     # --- ToolAgent Tests (Updated for Phase 2) ---
     def test_get_tool_effect_bonus(self):
@@ -89,7 +94,7 @@ class TestGameAgents(unittest.TestCase):
 
     # --- HeistAgent Integration Tests (Updated for Phase 2) ---
     @patch('builtins.input', return_value='N') # Mock user input for abilities
-    @patch('main.CrewAgent.perform_skill_check', return_value=True)
+    @patch('main.CrewAgent.perform_skill_check', return_value=main.CrewAgent.SUCCESS)
     def test_run_heist_success(self, mock_skill_check, mock_input):
         """Test a fully successful heist."""
         crew_ids = ['rogue_1', 'mage_1']
@@ -99,6 +104,7 @@ class TestGameAgents(unittest.TestCase):
         heist_agent = main.HeistAgent(
             self.game_data['heists'],
             self.game_data.get('random_events', []),
+            self.game_data['special_events'],
             self.crew_agent,
             self.tool_agent,
             self.city_agent
@@ -109,7 +115,7 @@ class TestGameAgents(unittest.TestCase):
         self.assertEqual(self.city_agent.loot[0]['item'], 'Dagger')
 
     @patch('builtins.input', return_value='N') # Mock user input for abilities
-    @patch('main.CrewAgent.perform_skill_check', side_effect=[True, False])
+    @patch('main.CrewAgent.perform_skill_check', side_effect=[main.CrewAgent.SUCCESS, main.CrewAgent.FAILURE])
     def test_run_heist_failure(self, mock_skill_check, mock_input):
         """Test a heist that fails on the second event."""
         crew_ids = ['rogue_1', 'mage_1']
@@ -119,6 +125,7 @@ class TestGameAgents(unittest.TestCase):
         heist_agent = main.HeistAgent(
             self.game_data['heists'],
             self.game_data.get('random_events', []),
+            self.game_data['special_events'],
             self.crew_agent,
             self.tool_agent,
             self.city_agent
