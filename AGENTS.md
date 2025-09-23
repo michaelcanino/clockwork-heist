@@ -1,52 +1,62 @@
 # AGENTS.md
 
-This file describes the core agents/tools used in **The Clockwork Heist** MVP, how they interact, and their input/output conventions. These align with the current `game_data.json` structure.
+This file describes the core agents/tools used in **The Clockwork Heist**, how they interact, and their input/output conventions. These align with the current `game_data.json` structure.
 
 ---
 
 ## CrewAgent
-**Purpose**: Represents individual crew members (Rogues, Mages, Artificers). Handles skill checks, tool usage, and outcomes during heists.
+**Purpose**: Represents individual crew members (Rogues, Mages, Artificers, etc.). Handles skill checks and stores base stats.
 
 - **Inputs**: 
   - Crew `id` (e.g., `"rogue_1"`)
-  - Action or skill check type (e.g., `"stealth"`, `"magic"`)
-  - Optional tool assignment
+  - Skill check type (e.g., `"stealth"`, `"magic"`)
+  - Difficulty for the check
 - **Outputs**: 
-  - Success/failure result
-  - Narrative outcome string
-  - Updated crew status (e.g., injury flag)
+  - `True` or `False` for success/failure of the skill check.
 - **Notes**: 
-  - Skills map directly to JSON fields: `stealth`, `lockpicking`, `combat`, `magic`.
+  - This agent is a straightforward data container and skill check resolver.
+  - **Unique Abilities**: Crew members now have unique abilities (e.g., Gambler's reroll, Scout's forewarning). The logic for these abilities is handled by the `HeistAgent` during a heist.
 
 ---
 
 ## ToolAgent
-**Purpose**: Manages tools and their effects when assigned to crew members.
+**Purpose**: Manages tools and their effects. It parses the `effect` string from `game_data.json` into a structured format for the `HeistAgent`.
 
+- **Method**: `get_tool_effect(tool_id, crew_role)`
 - **Inputs**:
   - Tool `id` (e.g., `"tool_lockpick"`)
-  - Target crew member `id`
+  - The `role` of the crew member using the tool.
 - **Outputs**:
-  - Adjusted skill check values (temporary boost)
-  - Validation if tool is usable by crew role (from `usable_by` field)
+  - A dictionary describing the tool's effect. Examples:
+    - `{'type': 'bonus', 'skill': 'lockpicking', 'value': 2}`
+    - `{'type': 'difficulty_reduction', 'condition': 'guard-related', 'value': 2}`
+    - `{'type': 'bypass', 'check': 'lockpicking', 'notoriety': 2}`
 - **Notes**:
-  - Tools only provide bonuses during the specific event/skill check.
+  - The `HeistAgent` is responsible for interpreting this dictionary and applying the effect.
+  - This agent uses regular expressions to parse the effect strings.
 
 ---
 
 ## HeistAgent
-**Purpose**: Orchestrates a heist sequence.
+**Purpose**: Orchestrates a complete heist sequence, including random events and unique crew abilities.
 
 - **Inputs**:
   - Heist `id` (e.g., `"heist_1"`)
-  - Crew assignments
-  - Tool assignments
+  - A list of crew `id`s.
+  - A dictionary of tool assignments (`{crew_id: tool_id}`).
+- **Internal State (during `run_heist`)**:
+  - `abilities_used_this_heist`: A `set` to track which crew members have used their "once per heist" ability.
+  - `double_loot_active`: A boolean flag set by the Gambler's successful reroll.
+- **Key Logic**:
+  - **Random Events**: Has a chance to inject a random event into the heist's event queue.
+  - **Ability Handling**:
+    - **Scout**: Checks for the scout before a random event is announced.
+    - **Alchemist**: Prompts the user to use the +1 bonus before each event.
+    - **Gambler**: Prompts the user to reroll after a failed check.
+  - **Tool Integration**: Calls `ToolAgent.get_tool_effect()` and applies the resulting logic (bonuses, difficulty reduction, bypasses).
 - **Outputs**:
-  - Heist summary (success/failure, loot acquired, notoriety changes)
-  - Event outcomes (success/failure strings, crew injuries)
-- **Notes**:
-  - Reads from JSON `heists` array
-  - Processes each event in order using skill checks + random roll modifiers
+  - A fully narrated heist sequence printed to the console.
+  - Updates to the `CityAgent` (loot and notoriety).
 
 ---
 
@@ -63,64 +73,30 @@ This file describes the core agents/tools used in **The Clockwork Heist** MVP, h
 ---
 
 ## GameManager
-**Purpose**: Central controller that coordinates agents and player input.
+**Purpose**: Central controller that manages the overall game flow, including the main menu and persistence.
 
-- **Inputs**:
-  - Player choices (select crew, assign tools, choose heist)
-- **Outputs**:
-  - Narration text for events
-  - Final heist results
-- **Notes**:
-  - Loads and parses `game_data.json`
-  - Delegates to CrewAgent, ToolAgent, and HeistAgent in sequence
-
----
-
-## Example Input/Output Flow (MVP)
-1. **Player Input**: Choose heist → select crew → assign tools.
-2. **GameManager** calls **HeistAgent** with selections.
-3. **HeistAgent** runs through `events`:
-   - For each, calls **CrewAgent** skill check (+ **ToolAgent** bonus if assigned).
-   - Success/failure returns narration + state changes.
-4. **HeistAgent** finalizes outcome → passes notoriety/loot updates to **CityAgent**.
-5. **GameManager** prints summary to player.
+- **Key Logic**:
+  - **Save/Load**: At startup, prompts the user to start a new game or load from `save_game.json`.
+  - **Main Menu**: Presents a persistent menu to the player with options to:
+    - `[P]lan Heist`: Initiates the heist setup sequence.
+    - `[S]ave Game`: Saves the current notoriety and loot.
+    - `[E]xit Game`: Terminates the application.
+  - **Delegation**: Coordinates all the other agents to run the game.
 
 ---
 
-# Phase 2 – Replayability & QoL
-
-## Expanded Crew Roster
-- Add new crew members with **unique traits**:
-  - Gambler → Risk/reward ability (can double rewards or lose them).
-  - Alchemist → Can craft potions that mitigate failures.
-  - Scout → Provides forewarning about upcoming random events.
-
-## Multiple Heist Locations
-- Introduce several new heist settings:
-  - The Merchant’s Guild (mid-tier difficulty, high gold payout).
-  - The Royal Treasury (high difficulty, rare loot).
-  - The Abandoned Cathedral (medium difficulty, cursed loot with trade-offs).
-
-## More Tools
-- Add new tools to diversify strategies:
-  - **Explosives** → Break into vaults but increase notoriety.
-  - **Disguise Kit** → Lower difficulty of guard-related events.
-  - **Alchemy Kit** → Exclusive for Alchemist, allows buffing crew stats.
-
-## Random Events
-- Create a pool of random events to increase replayability:
-  - Guard patrols.
-  - Traps (poison darts, collapsing floor).
-  - Rival thieves interfering mid-heist.
-  - Environmental hazards (fire, flooding).
-
-## Save/Load System
-- Implement a basic persistence system:
-  - Save current crew, tools, loot, and notoriety.
-  - Load state from file to continue progress.
+## Example Flow (Phase 2)
+1.  **GameManager** starts, asks user to **[N]ew Game** or **[L]oad Game**.
+2.  The main menu is displayed. Player chooses **[P]lan Heist**.
+3.  **GameManager** guides the player through choosing a heist, crew (e.g., including the Alchemist and Gambler), and assigning tools.
+4.  **GameManager** calls **HeistAgent.run_heist()**.
+5.  **HeistAgent** begins the event sequence.
+    - Before an event, it sees the Alchemist is available and asks: `Use Alchemist's 'Shielding Elixir'? [Y/N]`. Player inputs `Y`.
+    - The skill check for the event fails.
+    - **HeistAgent** sees the Gambler is available and asks: `Use Gambler's 'Double or Nothing' to reroll? [Y/N]`. Player inputs `Y`.
+    - The reroll succeeds. The heist continues, and a flag is set to double the loot.
+6.  The heist finishes successfully. **HeistAgent** calls **CityAgent** to add the (doubled) loot.
+7.  Control returns to the **GameManager**'s main menu. Player can choose to **[S]ave Game**.
+8.  Player chooses **[E]xit Game**.
 
 ---
-### Notes for Implementation
-- Keep events modular to support future expansions.
-- Balance crew traits so no single strategy dominates.
-- Save system can start with simple JSON persistence.
