@@ -37,39 +37,35 @@ class TestGameAgents(unittest.TestCase):
         self.city_agent = main.CityAgent(self.game_data['player'])
         self.heist_agent = main.HeistAgent(
             self.game_data['heists'],
+            self.game_data.get('random_events', []), # Updated for Phase 2
             self.crew_agent,
             self.tool_agent,
             self.city_agent
         )
 
-    def test_placeholder(self):
-        self.assertTrue(True)
-
     # --- CrewAgent Tests ---
     @patch('random.randint', return_value=5)
     def test_perform_skill_check_success(self, mock_randint):
         """Test a successful skill check."""
-        # Skill (5) + Roll (5) = 10, which is >= difficulty (10)
         success = self.crew_agent.perform_skill_check('rogue_1', 'stealth', 10)
         self.assertTrue(success)
 
     @patch('random.randint', return_value=4)
     def test_perform_skill_check_failure(self, mock_randint):
         """Test a failed skill check."""
-        # Skill (5) + Roll (4) = 9, which is < difficulty (10)
         success = self.crew_agent.perform_skill_check('rogue_1', 'stealth', 10)
         self.assertFalse(success)
 
-    # --- ToolAgent Tests ---
-    def test_get_tool_bonus_valid(self):
-        """Test getting a bonus for a valid tool and role."""
-        bonus = self.tool_agent.get_tool_bonus('tool_lockpick', 'Rogue')
-        self.assertEqual(bonus, 2)
+    # --- ToolAgent Tests (Updated for Phase 2) ---
+    def test_get_tool_effect_bonus(self):
+        """Test getting a structured bonus effect."""
+        effect = self.tool_agent.get_tool_effect('tool_lockpick', 'Rogue')
+        self.assertEqual(effect, {'type': 'bonus', 'skill': 'lockpicking', 'value': 2})
 
-    def test_get_tool_bonus_invalid_role(self):
-        """Test getting no bonus for an invalid role."""
-        bonus = self.tool_agent.get_tool_bonus('tool_lockpick', 'Mage')
-        self.assertEqual(bonus, 0)
+    def test_get_tool_effect_invalid_role(self):
+        """Test getting no effect for an invalid role."""
+        effect = self.tool_agent.get_tool_effect('tool_lockpick', 'Mage')
+        self.assertEqual(effect, {})
 
     def test_validate_tool_usage(self):
         """Test tool usage validation."""
@@ -91,51 +87,43 @@ class TestGameAgents(unittest.TestCase):
         self.assertEqual(len(self.city_agent.loot), initial_loot_count + 1)
         self.assertIn(new_loot, self.city_agent.loot)
 
-    # --- HeistAgent Integration Tests ---
+    # --- HeistAgent Integration Tests (Updated for Phase 2) ---
+    @patch('builtins.input', return_value='N') # Mock user input for abilities
     @patch('main.CrewAgent.perform_skill_check', return_value=True)
-    def test_run_heist_success(self, mock_skill_check):
+    def test_run_heist_success(self, mock_skill_check, mock_input):
         """Test a fully successful heist."""
         crew_ids = ['rogue_1', 'mage_1']
         tool_assignments = {'rogue_1': 'tool_gadget'}
-
         initial_loot_count = len(self.city_agent.loot)
 
-        # We need to re-create the HeistAgent to use the mocked skill check
-        # A better design might use dependency injection in run_heist itself
         heist_agent = main.HeistAgent(
             self.game_data['heists'],
+            self.game_data.get('random_events', []),
             self.crew_agent,
             self.tool_agent,
             self.city_agent
         )
         heist_agent.run_heist('heist_1', crew_ids, tool_assignments)
 
-        # Check that loot was awarded
         self.assertGreater(len(self.city_agent.loot), initial_loot_count)
         self.assertEqual(self.city_agent.loot[0]['item'], 'Dagger')
 
+    @patch('builtins.input', return_value='N') # Mock user input for abilities
     @patch('main.CrewAgent.perform_skill_check', side_effect=[True, False])
-    def test_run_heist_failure(self, mock_skill_check):
+    def test_run_heist_failure(self, mock_skill_check, mock_input):
         """Test a heist that fails on the second event."""
         crew_ids = ['rogue_1', 'mage_1']
         tool_assignments = {}
-
-        initial_notoriety = self.city_agent.notoriety
         initial_loot_count = len(self.city_agent.loot)
 
         heist_agent = main.HeistAgent(
             self.game_data['heists'],
+            self.game_data.get('random_events', []),
             self.crew_agent,
             self.tool_agent,
             self.city_agent
         )
         heist_agent.run_heist('heist_1', crew_ids, tool_assignments)
-
-        # Check that notoriety increased (or would, if failure message matched)
-        # Note: The current implementation in main.py only increases notoriety if the
-        # failure string contains "Notoriety increases". The test data doesn't have this.
-        # This test reveals a small gap between implementation and data. For now, we
-        # check that loot was NOT awarded.
 
         self.assertEqual(len(self.city_agent.loot), initial_loot_count)
 
