@@ -10,6 +10,9 @@
         "combat": 2,
         "magic": 0
       },
+      "xp": 0,
+      "level": 1,
+      "upgrades": [],
       "description": "A nimble thief known for slipping past guards and vanishing into shadows."
     },
     {
@@ -22,6 +25,9 @@
         "combat": 3,
         "magic": 5
       },
+      "xp": 0,
+      "level": 1,
+      "upgrades": [],
       "description": "An arcanist with a knack for disabling magical wards and weaving illusions."
     },
     {
@@ -34,6 +40,9 @@
         "combat": 3,
         "magic": 2
       },
+      "xp": 0,
+      "level": 1,
+      "upgrades": [],
       "description": "A tinkerer armed with gadgets, smoke bombs, and a questionable moral compass."
     },
     {
@@ -46,6 +55,9 @@
         "combat": 3,
         "magic": 2
       },
+      "xp": 0,
+      "level": 1,
+      "upgrades": [],
       "description": "A charming risk-taker whose wagers can double the crew’s gains or leave them penniless. Once per heist, reroll a failed check (success doubles reward, failure increases notoriety)."
     },
     {
@@ -58,6 +70,9 @@
         "combat": 1,
         "magic": 4
       },
+      "xp": 0,
+      "level": 1,
+      "upgrades": [],
       "description": "A potion-brewer who concocts elixirs that shield allies from failure or amplify strengths. Once per heist, grant +1 to all crew checks in the next event."
     },
     {
@@ -70,6 +85,9 @@
         "combat": 3,
         "magic": 0
       },
+      "xp": 0,
+      "level": 1,
+      "upgrades": [],
       "description": "A sharp-eyed lookout, skilled at spotting patrols and warning of dangers ahead. Once per heist, reveal the next random event before it triggers."
     }
   ],
@@ -130,7 +148,12 @@
           "check": "stealth",
           "difficulty": 3,
           "success": "The crew slips by unnoticed.",
-          "failure": "The alarm is raised! Notoriety increases."
+          "partial_success": "You get past, but notoriety +1.",
+          "failure": "The alarm is raised! Notoriety increases.",
+          "scaling": {
+            "notoriety_threshold": 6,
+            "difficulty_increase": 1
+          }
         },
         {
           "id": "event_ward",
@@ -138,6 +161,7 @@
           "check": "magic",
           "difficulty": 4,
           "success": "The ward fades quietly.",
+          "partial_success": "The ward flickers but drains magical energy (Mage –1 magic for rest of heist).",
           "failure": "The ward flares and burns the intruder. Crew member injured."
         }
       ]
@@ -158,6 +182,7 @@
           "check": "stealth",
           "difficulty": 4,
           "success": "The trap is avoided just in time.",
+          "partial_success": "A crew member grazed, combat –1 until healed.",
           "failure": "A crew member is poisoned and weakened."
         },
         {
@@ -166,6 +191,7 @@
           "check": "combat",
           "difficulty": 4,
           "success": "The rivals retreat, leaving you the spoils.",
+          "partial_success": "The rivals flee but take one minor loot item.",
           "failure": "The rivals snatch some loot before fleeing."
         }
       ]
@@ -186,6 +212,7 @@
           "check": "combat",
           "difficulty": 5,
           "success": "The guards are defeated in a fierce clash.",
+          "partial_success": "The guards retreat, but notoriety +2.",
           "failure": "The crew is wounded and forced to retreat."
         },
         {
@@ -194,6 +221,7 @@
           "check": "magic",
           "difficulty": 5,
           "success": "The mage channels the surge safely.",
+          "partial_success": "Loot is damaged, lose one item.",
           "failure": "The flood scorches valuables and harms the crew."
         }
       ]
@@ -214,6 +242,7 @@
           "check": "magic",
           "difficulty": 3,
           "success": "The curse is contained with alchemy.",
+          "partial_success": "The curse weakens morale, respect –1.",
           "failure": "The curse afflicts the crew, lowering morale."
         },
         {
@@ -222,7 +251,70 @@
           "check": "stealth",
           "difficulty": 4,
           "success": "The crew leaps to safety.",
+          "partial_success": "A member stumbles, notoriety +1.",
           "failure": "A member falls and is injured."
+        }
+      ]
+    },
+    {
+      "id": "heist_5",
+      "name": "The Guild Foundry",
+      "difficulty": 4,
+      "required_roles": ["Artificer", "Scout"],
+      "potential_loot": [
+        {"item": "Aetherblue Fuel Cell", "value": 200},
+        {"item": "Experimental Schematic", "value": 150}
+      ],
+      "scaling": {
+        "notoriety_threshold": 8,
+        "extra_event": "event_elite_guild_enforcer"
+      },
+      "events": [
+        {
+          "id": "event_molten_spill",
+          "description": "Molten metal spills across the foundry floor.",
+          "check": "stealth",
+          "difficulty": 4,
+          "success": "The crew slips past without harm.",
+          "partial_success": "A crew member takes minor burns, losing 1 XP reward.",
+          "failure": "A crew member is badly burned, combat –1 until healed."
+        },
+        {
+          "id": "event_automaton",
+          "description": "A Guild Security Automaton clanks into view.",
+          "check": "combat",
+          "difficulty": 4,
+          "success": "The automaton is disabled.",
+          "failure": "The automaton sounds the alarm! Notoriety +2."
+        }
+      ]
+    },
+    {
+      "id": "heist_6",
+      "name": "The Sky Docks",
+      "difficulty": 5,
+      "required_roles": ["Rogue", "Gambler", "Mage"],
+      "potential_loot": [
+        {"item": "Skyship Captain’s Log", "value": 250},
+        {"item": "Smuggled Relic from the Eastern Reach", "value": 400}
+      ],
+      "events": [
+        {
+          "id": "event_storm",
+          "description": "A sudden storm surges over the docks.",
+          "check": "magic",
+          "difficulty": 5,
+          "success": "The storm is diverted safely.",
+          "failure": "Storm damages an airship, lose one loot item."
+        },
+        {
+          "id": "event_air_duel",
+          "description": "A duel erupts aboard the airship against rival guards.",
+          "check": "combat",
+          "difficulty": 5,
+          "success": "The crew wins the duel.",
+          "partial_success": "Victory, but notoriety +3.",
+          "failure": "The crew is wounded and forced to retreat."
         }
       ]
     }
@@ -252,11 +344,86 @@
       "description": "An environmental hazard—fire from ruptured aether pipes—blocks the path.",
       "check": "magic",
       "difficulty": 4
+    },
+    {
+      "id": "rand_betrayal",
+      "description": "A rival syndicate pretends to help, then turns on you.",
+      "check": "combat",
+      "difficulty": 3,
+      "success": "The rivals are driven off.",
+      "partial_success": "The rivals flee but steal one loot item.",
+      "failure": "A crew member is injured and loot is stolen.",
+      "reputation_hook": {
+        "fear_bias": "Betrayal more likely if fear > respect.",
+        "respect_bias": "Betrayal less likely if respect > fear."
+      },
+      "scaling": {
+        "notoriety_threshold": 10,
+        "difficulty_increase": 2
+      }
+    }
+  ],
+
+  "special_events": [
+    {
+      "id": "event_arrest",
+      "description": "Brasshaven Watch swarm the scene with clockwork hounds.",
+      "check": "stealth",
+      "difficulty": 3,
+      "success": "The crew escapes unseen.",
+      "partial_success": "The crew escapes but drops half the loot.",
+      "failure": "A crew member is arrested and unavailable until bailed out or rescued.",
+      "scaling": {
+        "notoriety_threshold": 12,
+        "difficulty_increase": 2
+      }
     }
   ],
 
   "player": {
     "starting_notoriety": 0,
-    "starting_loot": []
+    "starting_loot": [],
+    "notoriety": 0,
+    "reputation": {
+      "fear": 0,
+      "respect": 0
+    }
+  },
+
+  "progression": {
+    "xp_thresholds": [0, 10, 25, 45, 70],
+    "level_cap": 5,
+    "upgrade_options": {
+      "general": [
+        "Increase stealth by +1",
+        "Increase combat by +1",
+        "Increase lockpicking by +1",
+        "Increase magic by +1"
+      ],
+      "rogue": [
+        "Shadowstep: Once per heist, auto-succeed a stealth check",
+        "Ghost in the Gears: Once per heist, bypass an entire event with no check"
+      ],
+      "mage": [
+        "Arcane Reservoir: Store one success to spend later",
+        "Chronoward: Once per heist, rewind one failed check as if it never happened"
+      ],
+      "artificer": [
+        "Tinker’s Edge: Craft a temporary gadget granting +2 to any check once per heist",
+        "Clockwork Legion: Deploys gadgets, granting +2 to all crew checks for one event"
+      ],
+      "gambler": [
+        "Loaded Dice: Reroll twice per heist, but if both fail notoriety +3",
+        "Fate’s Hand: Choose success or failure on one roll, but notoriety +5"
+      ],
+      "alchemist": [
+        "Grand Elixir: Once per heist, buff all crew with +1 to all skills for next 2 events",
+        "Philosopher’s Draught: One event auto-succeeds and heals all crew injuries"
+      ],
+      "scout": [
+        "Hawkeye: Automatically reveal 2 random events instead of 1",
+        "Eagle of Brasshaven: Automatically avoid the first random event each heist"
+      ]
+    }
   }
 }

@@ -100,3 +100,67 @@ This file describes the core agents/tools used in **The Clockwork Heist**, how t
 8.  Player chooses **[E]xit Game**.
 
 ---
+
+# Phase 3 – Strategic Depth (AGENTS.md)
+
+These updates expand the agents to support Phase 3 features: **Notoriety**, **Crew Progression**, **Reputation**, and **Complex Outcomes**. They are written to align with the Brasshaven lore of shifting power, rival crews, and the city’s memory of its thieves.
+
+---
+
+## CityAgent (Updated)
+**Purpose**: Tracks global player state within Brasshaven, now reflecting how the city reacts to the crew’s infamy or influence.
+
+- **New State**:
+  - `notoriety`: Integer, rises when alarms are raised, explosives are used, or guards are killed. High notoriety draws elite clockwork enforcers or rival syndicates.
+  - `reputation`: Dictionary with two values:
+    - `fear`: Increases when the crew uses brutal or reckless tactics.
+    - `respect`: Increases when the crew pulls off clean, clever heists.
+  - The balance of fear vs respect determines how guilds, nobles, and syndicates respond to the crew.
+- **Integration**:
+  - Updates after each heist via HeistAgent.
+  - Influences difficulty scaling and NPC reactions in future heists.
+  - Updates XP and level progression by applying rules from the new `progression` block in `game_data.json`.
+
+---
+
+## CrewAgent (Updated)
+**Purpose**: Represents crew members, now with progression over multiple heists.
+
+- **New State**:
+  - `xp`: Integer earned from successful events or heists.
+  - `level`: Derived from XP thresholds in `progression.xp_thresholds` (data-driven, no longer hardcoded).
+  - `upgrades`: Tracks chosen improvements to skills or unique perks.
+  - `available_upgrades`: Determined by role-specific options in `progression.upgrade_options`.
+- **Lore Note**: Crew members grow their legend in Brasshaven; their names whispered in taverns and alleys as they gain notoriety and skill.
+
+---
+
+## HeistAgent (Updated)
+**Purpose**: Orchestrates heists with more complex outcomes and scaling challenges.
+
+- **New Logic**:
+  - **Partial Success**: Events may now contain a `partial_success` key with a mixed outcome (e.g., loot reduced, notoriety gained, or crew injury).
+  - **Betrayal Events**: Certain outcomes may trigger betrayal (e.g., a rival syndicate turning a contact, or even the Gambler selling out the crew if reputation is too low).
+  - **Arrest Outcomes**: High notoriety failures may result in crew members being captured. They are unavailable until the crew mounts a rescue or pays a ransom.
+  - **Difficulty Scaling**: Event objects may now include a `scaling` field that raises difficulty or adds extra events when notoriety thresholds are passed.
+- **Integration with Reputation**:
+  - High **fear** may cause guards to flee but attract deadlier enemies.
+  - High **respect** may open alternate, easier paths (e.g., sympathetic workers opening side doors).
+
+---
+
+## Example Flow (Phase 3)
+1. **CityAgent** starts tracking notoriety (2) and reputation (fear: 3, respect: 1).
+2. The crew plans the **Royal Treasury Heist**.
+3. In **HeistAgent**, an event resolves as a **partial success**: they slip past guards but drop some loot.
+4. The **Gambler** rerolls a failure, succeeds, and doubles loot—but notoriety spikes.
+5. Because notoriety ≥ 10, **elite clockwork riflemen** spawn as reinforcements (from an event with `scaling`).
+6. The heist ends. **CrewAgent** updates: each member gains XP, Scout levels up and improves stealth using an option from `progression.upgrade_options`.
+7. **CityAgent** records that nobles now fear the crew; syndicates may reach out with more dangerous opportunities.
+
+---
+
+### Notes
+- These expansions remain modular. Agents don’t need rewriting—only extensions.
+- `game_data.json` now contains a `progression` block that defines XP thresholds, level caps, and available upgrades. Agents should reference this instead of hardcoding rules.
+- Event objects now support `partial_success` and `scaling` fields, and HeistAgent must process them dynamically.
