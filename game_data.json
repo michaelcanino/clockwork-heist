@@ -1,0 +1,97 @@
+{
+  "crew_members": [
+    {
+      "id": "rogue_1",
+      "name": "Silas Quickfingers",
+      "role": "Rogue",
+      "skills": {
+        "stealth": 5,
+        "lockpicking": 4,
+        "combat": 2,
+        "magic": 0
+      },
+      "description": "A nimble thief known for slipping past guards and vanishing into shadows."
+    },
+    {
+      "id": "mage_1",
+      "name": "Lyra Emberveil",
+      "role": "Mage",
+      "skills": {
+        "stealth": 2,
+        "lockpicking": 0,
+        "combat": 3,
+        "magic": 5
+      },
+      "description": "An arcanist with a knack for disabling magical wards and weaving illusions."
+    },
+    {
+      "id": "artificer_1",
+      "name": "Dorian Gearwright",
+      "role": "Artificer",
+      "skills": {
+        "stealth": 3,
+        "lockpicking": 2,
+        "combat": 3,
+        "magic": 1
+      },
+      "description": "A tinkerer armed with gadgets, smoke bombs, and a questionable moral compass."
+    }
+  ],
+
+  "tools": [
+    {
+      "id": "tool_lockpick",
+      "name": "Lockpicks",
+      "effect": "Boosts lockpicking by +2",
+      "usable_by": ["Rogue", "Artificer"]
+    },
+    {
+      "id": "tool_rune",
+      "name": "Dispel Rune",
+      "effect": "Boosts magic by +2 for ward-disabling",
+      "usable_by": ["Mage"]
+    },
+    {
+      "id": "tool_gadget",
+      "name": "Smoke Bomb",
+      "effect": "Boosts stealth by +2 during escapes",
+      "usable_by": ["Rogue", "Artificer"]
+    }
+  ],
+
+  "heists": [
+    {
+      "id": "heist_1",
+      "name": "The Noble’s Manor",
+      "difficulty": 3,
+      "required_roles": ["Rogue", "Mage"],
+      "potential_loot": [
+        {"item": "Jeweled Dagger", "value": 100},
+        {"item": "Encrypted Ledger", "value": 150}
+      ],
+      "events": [
+        {
+          "id": "event_guard",
+          "description": "A guard patrol crosses your path.",
+          "check": "stealth",
+          "difficulty": 3,
+          "success": "The crew slips by unnoticed.",
+          "failure": "The alarm is raised! Notoriety increases."
+        },
+        {
+          "id": "event_ward",
+          "description": "A magical ward shimmers at the vault door.",
+          "check": "magic",
+          "difficulty": 4,
+          "success": "The ward fades quietly.",
+          "failure": "The ward flares and burns the intruder. Crew member injured."
+        }
+      ]
+    }
+  ],
+
+  "player": {
+    "starting_notoriety": 0,
+    "starting_loot": []
+  }
+}
