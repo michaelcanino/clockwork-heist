@@ -85,3 +85,42 @@ This file describes the core agents/tools used in **The Clockwork Heist** MVP, h
 4. **HeistAgent** finalizes outcome → passes notoriety/loot updates to **CityAgent**.
 5. **GameManager** prints summary to player.
 
+---
+
+# Phase 2 – Replayability & QoL
+
+## Expanded Crew Roster
+- Add new crew members with **unique traits**:
+  - Gambler → Risk/reward ability (can double rewards or lose them).
+  - Alchemist → Can craft potions that mitigate failures.
+  - Scout → Provides forewarning about upcoming random events.
+
+## Multiple Heist Locations
+- Introduce several new heist settings:
+  - The Merchant’s Guild (mid-tier difficulty, high gold payout).
+  - The Royal Treasury (high difficulty, rare loot).
+  - The Abandoned Cathedral (medium difficulty, cursed loot with trade-offs).
+
+## More Tools
+- Add new tools to diversify strategies:
+  - **Explosives** → Break into vaults but increase notoriety.
+  - **Disguise Kit** → Lower difficulty of guard-related events.
+  - **Alchemy Kit** → Exclusive for Alchemist, allows buffing crew stats.
+
+## Random Events
+- Create a pool of random events to increase replayability:
+  - Guard patrols.
+  - Traps (poison darts, collapsing floor).
+  - Rival thieves interfering mid-heist.
+  - Environmental hazards (fire, flooding).
+
+## Save/Load System
+- Implement a basic persistence system:
+  - Save current crew, tools, loot, and notoriety.
+  - Load state from file to continue progress.
+
+---
+### Notes for Implementation
+- Keep events modular to support future expansions.
+- Balance crew traits so no single strategy dominates.
+- Save system can start with simple JSON persistence.
