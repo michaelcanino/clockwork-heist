@@ -101,7 +101,7 @@ This file describes the core agents/tools used in **The Clockwork Heist**, how t
 
 ---
 
-# Phase 3 – Strategic Depth (AGENTS.md)
+# Phase 3 – Strategic Depth
 
 These updates expand the agents to support Phase 3 features: **Notoriety**, **Crew Progression**, **Reputation**, and **Complex Outcomes**. They are written to align with the Brasshaven lore of shifting power, rival crews, and the city’s memory of its thieves.
 
