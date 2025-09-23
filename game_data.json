@@ -30,11 +30,47 @@
       "role": "Artificer",
       "skills": {
         "stealth": 3,
-        "lockpicking": 2,
+        "lockpicking": 3,
         "combat": 3,
-        "magic": 1
+        "magic": 2
       },
       "description": "A tinkerer armed with gadgets, smoke bombs, and a questionable moral compass."
+    },
+    {
+      "id": "gambler_1",
+      "name": "Cassian Vey",
+      "role": "Gambler",
+      "skills": {
+        "stealth": 3,
+        "lockpicking": 2,
+        "combat": 3,
+        "magic": 2
+      },
+      "description": "A charming risk-taker whose wagers can double the crew’s gains or leave them penniless. Once per heist, reroll a failed check (success doubles reward, failure increases notoriety)."
+    },
+    {
+      "id": "alchemist_1",
+      "name": "Seraphine Morrow",
+      "role": "Alchemist",
+      "skills": {
+        "stealth": 2,
+        "lockpicking": 1,
+        "combat": 1,
+        "magic": 4
+      },
+      "description": "A potion-brewer who concocts elixirs that shield allies from failure or amplify strengths. Once per heist, grant +1 to all crew checks in the next event."
+    },
+    {
+      "id": "scout_1",
+      "name": "Finn Ashwhistle",
+      "role": "Scout",
+      "skills": {
+        "stealth": 5,
+        "lockpicking": 2,
+        "combat": 3,
+        "magic": 0
+      },
+      "description": "A sharp-eyed lookout, skilled at spotting patrols and warning of dangers ahead. Once per heist, reveal the next random event before it triggers."
     }
   ],
 
@@ -43,19 +79,37 @@
       "id": "tool_lockpick",
       "name": "Lockpicks",
       "effect": "Boosts lockpicking by +2",
-      "usable_by": ["Rogue", "Artificer"]
+      "usable_by": ["Rogue", "Artificer", "Scout"]
     },
     {
       "id": "tool_rune",
       "name": "Dispel Rune",
       "effect": "Boosts magic by +2 for ward-disabling",
-      "usable_by": ["Mage"]
+      "usable_by": ["Mage", "Alchemist"]
     },
     {
       "id": "tool_gadget",
       "name": "Smoke Bomb",
       "effect": "Boosts stealth by +2 during escapes",
-      "usable_by": ["Rogue", "Artificer"]
+      "usable_by": ["Rogue", "Artificer", "Scout"]
+    },
+    {
+      "id": "tool_explosives",
+      "name": "Aether-Charged Explosives",
+      "effect": "Breaks through vaults (lockpicking bypass) but increases notoriety by +2",
+      "usable_by": ["Artificer", "Gambler"]
+    },
+    {
+      "id": "tool_disguise",
+      "name": "Disguise Kit",
+      "effect": "Lowers difficulty of guard-related events by 2",
+      "usable_by": ["Rogue", "Scout", "Gambler"]
+    },
+    {
+      "id": "tool_alchemy",
+      "name": "Alchemy Kit",
+      "effect": "Allows crafting potions that temporarily boost any stat by +2 for one event",
+      "usable_by": ["Alchemist"]
     }
   ],
 
@@ -87,6 +141,117 @@
           "failure": "The ward flares and burns the intruder. Crew member injured."
         }
       ]
+    },
+    {
+      "id": "heist_2",
+      "name": "The Merchant’s Guild",
+      "difficulty": 4,
+      "required_roles": ["Rogue", "Artificer"],
+      "potential_loot": [
+        {"item": "Guild Gold Bars", "value": 200},
+        {"item": "Smuggler’s Map", "value": 120}
+      ],
+      "events": [
+        {
+          "id": "event_trap",
+          "description": "A pressure plate triggers poison darts.",
+          "check": "stealth",
+          "difficulty": 4,
+          "success": "The trap is avoided just in time.",
+          "failure": "A crew member is poisoned and weakened."
+        },
+        {
+          "id": "event_rival",
+          "description": "Rival thieves attempt to steal your prize.",
+          "check": "combat",
+          "difficulty": 4,
+          "success": "The rivals retreat, leaving you the spoils.",
+          "failure": "The rivals snatch some loot before fleeing."
+        }
+      ]
+    },
+    {
+      "id": "heist_3",
+      "name": "The Royal Treasury",
+      "difficulty": 5,
+      "required_roles": ["Mage", "Artificer", "Gambler"],
+      "potential_loot": [
+        {"item": "Crown Jewels of Brasshaven", "value": 500},
+        {"item": "Aether Core", "value": 300}
+      ],
+      "events": [
+        {
+          "id": "event_elite_guard",
+          "description": "Clockwork riflemen block the way.",
+          "check": "combat",
+          "difficulty": 5,
+          "success": "The guards are defeated in a fierce clash.",
+          "failure": "The crew is wounded and forced to retreat."
+        },
+        {
+          "id": "event_flood",
+          "description": "An aether conduit ruptures, flooding the vault with searing energy.",
+          "check": "magic",
+          "difficulty": 5,
+          "success": "The mage channels the surge safely.",
+          "failure": "The flood scorches valuables and harms the crew."
+        }
+      ]
+    },
+    {
+      "id": "heist_4",
+      "name": "The Abandoned Cathedral",
+      "difficulty": 3,
+      "required_roles": ["Alchemist", "Scout"],
+      "potential_loot": [
+        {"item": "Cursed Relic", "value": 250},
+        {"item": "Stained Glass Shards", "value": 80}
+      ],
+      "events": [
+        {
+          "id": "event_curse",
+          "description": "A lingering curse seeps from the relics.",
+          "check": "magic",
+          "difficulty": 3,
+          "success": "The curse is contained with alchemy.",
+          "failure": "The curse afflicts the crew, lowering morale."
+        },
+        {
+          "id": "event_collapse",
+          "description": "The cathedral’s floor crumbles underfoot.",
+          "check": "stealth",
+          "difficulty": 4,
+          "success": "The crew leaps to safety.",
+          "failure": "A member falls and is injured."
+        }
+      ]
+    }
+  ],
+
+  "random_events": [
+    {
+      "id": "rand_guard",
+      "description": "Unexpected guard patrol disrupts the plan.",
+      "check": "stealth",
+      "difficulty": 3
+    },
+    {
+      "id": "rand_trap",
+      "description": "A collapsing floor threatens to drop the crew into the depths.",
+      "check": "stealth",
+      "difficulty": 4
+    },
+    {
+      "id": "rand_rival",
+      "description": "A rival crew shadows your movements, waiting to strike.",
+      "check": "combat",
+      "difficulty": 4
+    },
+    {
+      "id": "rand_env",
+      "description": "An environmental hazard—fire from ruptured aether pipes—blocks the path.",
+      "check": "magic",
+      "difficulty": 4
     }
   ],
 
