@@ -1,166 +1,206 @@
 # AGENTS.md
 
-This file describes the core agents/tools used in **The Clockwork Heist**, how they interact, and their input/output conventions. These align with the current `game_data.json` structure.
+This document describes the core agents used in **The Clockwork Heist** and how they interact. It is updated to reflect the current `main.py` and `game_data.json`.
 
 ---
 
 ## CrewAgent
-**Purpose**: Represents individual crew members (Rogues, Mages, Artificers, etc.). Handles skill checks and stores base stats.
+**Purpose**: Represents individual crew members and resolves skill checks during heists.
 
 - **Inputs**: 
   - Crew `id` (e.g., `"rogue_1"`)
   - Skill check type (e.g., `"stealth"`, `"magic"`)
-  - Difficulty for the check
+  - Difficulty of the check
 - **Outputs**: 
-  - `True` or `False` for success/failure of the skill check.
-- **Notes**: 
-  - This agent is a straightforward data container and skill check resolver.
-  - **Unique Abilities**: Crew members now have unique abilities (e.g., Gambler's reroll, Scout's forewarning). The logic for these abilities is handled by the `HeistAgent` during a heist.
+  - One of: `"success"`, `"partial"`, `"failure"`
+- **Behavior**:
+  - Computes the effective skill using base skill, temporary modifiers, tools, and random rolls.
+  - Tracks XP, levels, and unlockable upgrades based on thresholds from `progression.xp_thresholds`.
+  - Applies temporary debuffs (e.g., `"combat –1 until healed"`) parsed from event text.
+- **Notes**:
+  - Unique crew abilities (e.g., Shadowstep, Chronoward) are triggered and managed by `HeistAgent`, not `CrewAgent`.
 
 ---
 
 ## ToolAgent
-**Purpose**: Manages tools and their effects. It parses the `effect` string from `game_data.json` into a structured format for the `HeistAgent`.
+**Purpose**: Provides structured tool effects from the `game_data.json`.
 
 - **Method**: `get_tool_effect(tool_id, crew_role)`
 - **Inputs**:
   - Tool `id` (e.g., `"tool_lockpick"`)
-  - The `role` of the crew member using the tool.
+  - Crew member `role`
 - **Outputs**:
-  - A dictionary describing the tool's effect. Examples:
-    - `{'type': 'bonus', 'skill': 'lockpicking', 'value': 2}`
-    - `{'type': 'difficulty_reduction', 'condition': 'guard-related', 'value': 2}`
-    - `{'type': 'bypass', 'check': 'lockpicking', 'notoriety': 2}`
+  - A dictionary describing the tool’s effect. Examples:
+    ```python
+    {'type': 'bonus', 'skill': 'lockpicking', 'value': 2}
+    {'type': 'difficulty_reduction', 'condition': 'guard', 'value': 2}
+    {'type': 'bypass', 'check': 'lockpicking', 'notoriety': 2}
+    ```
+- **Behavior**:
+  - Validates tool usability per crew role.
+  - Prevents multiple uses per heist.
 - **Notes**:
-  - The `HeistAgent` is responsible for interpreting this dictionary and applying the effect.
-  - This agent uses regular expressions to parse the effect strings.
+  - Tool effects are already structured in JSON — no string parsing is needed.
 
 ---
 
 ## HeistAgent
-**Purpose**: Orchestrates a complete heist sequence, including random events and unique crew abilities.
+**Purpose**: Runs full heist sequences, including event resolution, tool use, abilities, and outcomes.
 
 - **Inputs**:
-  - Heist `id` (e.g., `"heist_1"`)
-  - A list of crew `id`s.
-  - A dictionary of tool assignments (`{crew_id: tool_id}`).
-- **Internal State (during `run_heist`)**:
-  - `abilities_used_this_heist`: A `set` to track which crew members have used their "once per heist" ability.
-  - `double_loot_active`: A boolean flag set by the Gambler's successful reroll.
-- **Key Logic**:
-  - **Random Events**: Has a chance to inject a random event into the heist's event queue.
-  - **Ability Handling**:
-    - **Scout**: Checks for the scout before a random event is announced.
-    - **Alchemist**: Prompts the user to use the +1 bonus before each event.
-    - **Gambler**: Prompts the user to reroll after a failed check.
-  - **Tool Integration**: Calls `ToolAgent.get_tool_effect()` and applies the resulting logic (bonuses, difficulty reduction, bypasses).
+  - Heist `id`
+  - List of crew `id`s
+  - Tool assignments: `{crew_id: tool_id}`
+- **Internal State**:
+  - `abilities_used_this_heist`: Tracks “once per heist” ability usage.
+  - `temporary_effects`: Stores temporary skill modifiers from partial outcomes.
+  - `double_loot_active`: True if Gambler’s reroll succeeds.
+  - `arcane_reservoir_stored`: Tracks Mage’s stored success.
+- **Key Features**:
+  - **Event Sequencing**: Runs main events, inserts random events (25% chance), and notoriety-triggered events.
+  - **Difficulty Scaling**: Increases difficulty or adds events when `notoriety` passes thresholds.
+  - **Partial Success Handling**: Applies side effects (notoriety, debuffs, loot loss) when outcomes fall just short.
+  - **Ability Resolution**: Checks for and prompts use of crew upgrades (e.g., Shadowstep, Clockwork Legion, Chronoward).
+  - **Tool Integration**: Applies bonuses, difficulty reductions, bypasses, or notoriety trade-offs.
+  - **Special Outcomes**: Injuries, arrests, or unavailable crew handled dynamically.
 - **Outputs**:
-  - A fully narrated heist sequence printed to the console.
-  - Updates to the `CityAgent` (loot and notoriety).
+  - Narrated heist flow printed to console.
+  - Updated `CityAgent` state (loot, notoriety, reputation).
+  - XP awarded to participating crew.
 
 ---
 
 ## CityAgent
-**Purpose**: Tracks global player state within Brasshaven.
+**Purpose**: Tracks the player’s global state within Brasshaven.
 
-- **Inputs**:
-  - Updates from HeistAgent (loot gained, notoriety changes)
-- **Outputs**:
-  - Updated player state (stored in `player` object from JSON)
+- **State**:
+  - `notoriety`: Increases with alarms, bypasses, or failures.
+  - `reputation`: Tracks `fear` and `respect` and influences event outcomes.
+  - `loot`: Inventory of items gained during heists.
+- **Methods**:
+  - `increase_notoriety(amount)`
+  - `update_reputation(rep_type, amount)`
+  - `add_loot(item)`
 - **Notes**:
-  - MVP keeps this simple: just `starting_notoriety` and `starting_loot`.
+  - High notoriety may spawn special events (e.g., elite enforcers).
+  - Fear vs. respect influences random event difficulty and narrative outcomes.
 
 ---
 
 ## GameManager
-**Purpose**: Central controller that manages the overall game flow, including the main menu and persistence.
+**Purpose**: Central controller of the game loop, menus, and persistence.
 
-- **Key Logic**:
-  - **Save/Load**: At startup, prompts the user to start a new game or load from `save_game.json`.
-  - **Main Menu**: Presents a persistent menu to the player with options to:
-    - `[P]lan Heist`: Initiates the heist setup sequence.
-    - `[S]ave Game`: Saves the current notoriety and loot.
-    - `[E]xit Game`: Terminates the application.
-  - **Delegation**: Coordinates all the other agents to run the game.
-
----
-
-## Example Flow (Phase 2)
-1.  **GameManager** starts, asks user to **[N]ew Game** or **[L]oad Game**.
-2.  The main menu is displayed. Player chooses **[P]lan Heist**.
-3.  **GameManager** guides the player through choosing a heist, crew (e.g., including the Alchemist and Gambler), and assigning tools.
-4.  **GameManager** calls **HeistAgent.run_heist()**.
-5.  **HeistAgent** begins the event sequence.
-    - Before an event, it sees the Alchemist is available and asks: `Use Alchemist's 'Shielding Elixir'? [Y/N]`. Player inputs `Y`.
-    - The skill check for the event fails.
-    - **HeistAgent** sees the Gambler is available and asks: `Use Gambler's 'Double or Nothing' to reroll? [Y/N]`. Player inputs `Y`.
-    - The reroll succeeds. The heist continues, and a flag is set to double the loot.
-6.  The heist finishes successfully. **HeistAgent** calls **CityAgent** to add the (doubled) loot.
-7.  Control returns to the **GameManager**'s main menu. Player can choose to **[S]ave Game**.
-8.  Player chooses **[E]xit Game**.
+- **Responsibilities**:
+  - Handles save/load from `save_game.json` (including `reputation` and crew state).
+  - Main menu options:
+    - `[P]lan Heist`: Choose heist, crew, and tools.
+    - `[C]rew Roster`: View crew stats and upgrades.
+    - `[M]arket`: (WIP) Spend loot and manage resources.
+    - `[S]ave Game`: Save progress.
+    - `[E]xit Game`: Exit the program.
+- **Progression**:
+  - After each heist, awards XP and prompts for upgrade selection.
+  - Applies chosen skill boosts or unlocks new abilities.
 
 ---
 
-# Phase 3 – Strategic Depth
-
-These updates expand the agents to support Phase 3 features: **Notoriety**, **Crew Progression**, **Reputation**, and **Complex Outcomes**. They are written to align with the Brasshaven lore of shifting power, rival crews, and the city’s memory of its thieves.
+## Example Flow
+1. **GameManager** starts and loads or initializes the game.
+2. The player chooses **[P]lan Heist**.
+3. **HeistAgent** executes events, triggering tool effects, crew abilities, and random events.
+4. Outcomes (success, partial, failure) modify notoriety, reputation, and crew status.
+5. **CityAgent** records loot and updates the city state.
+6. **CrewAgent** applies XP and handles level-ups.
+7. Control returns to the main menu, allowing the player to save, spend loot, or attempt another heist.
 
 ---
 
-## CityAgent (Updated)
-**Purpose**: Tracks global player state within Brasshaven, now reflecting how the city reacts to the crew’s infamy or influence.
+# Phase 4 – Factions & Narrative
 
-- **New State**:
-  - `notoriety`: Integer, rises when alarms are raised, explosives are used, or guards are killed. High notoriety draws elite clockwork enforcers or rival syndicates.
-  - `reputation`: Dictionary with two values:
-    - `fear`: Increases when the crew uses brutal or reckless tactics.
-    - `respect`: Increases when the crew pulls off clean, clever heists.
-  - The balance of fear vs respect determines how guilds, nobles, and syndicates respond to the crew.
+This phase introduces **factions**, **branching storylines**, and **multi-heist arcs**. These systems layer on top of the existing Crew/Heist/City framework.
+
+---
+
+## FactionAgent
+**Purpose**: Represents the major Brasshaven factions and tracks the crew’s standing with them.
+
+- **Factions**:
+  - **Guilds** (industry, invention, profit)
+  - **Nobles** (wealth, prestige, political power)
+  - **Syndicates** (underworld, rival thieves, black markets)
+
+- **State**:
+  - Reputation per faction: `allied`, `neutral`, or `hostile`.
+  - Favor score (numeric meter, e.g., –10 to +10).
+  - Faction perks: discounts, safehouses, unique tools.
+  - Faction threats: stronger enemies, assassins, blockades.
+
 - **Integration**:
-  - Updates after each heist via HeistAgent.
-  - Influences difficulty scaling and NPC reactions in future heists.
-  - Updates XP and level progression by applying rules from the new `progression` block in `game_data.json`.
+  - Updated after each heist depending on targets, choices, and outcomes.
+  - Influences heist difficulty (e.g., hostile Guild = more automatons).
+  - Determines story branches (who offers contracts, betrayals, or alliances).
 
 ---
 
-## CrewAgent (Updated)
-**Purpose**: Represents crew members, now with progression over multiple heists.
+## NarrativeAgent
+**Purpose**: Drives branching story events and between-heist narrative choices.
 
-- **New State**:
-  - `xp`: Integer earned from successful events or heists.
-  - `level`: Derived from XP thresholds in `progression.xp_thresholds` (data-driven, no longer hardcoded).
-  - `upgrades`: Tracks chosen improvements to skills or unique perks.
-  - `available_upgrades`: Determined by role-specific options in `progression.upgrade_options`.
-- **Lore Note**: Crew members grow their legend in Brasshaven; their names whispered in taverns and alleys as they gain notoriety and skill.
+- **Features**:
+  - **Between-Heist Events**: Story beats triggered by notoriety, faction standing, or campaign progress.
+  - **Choices & Consequences**: Options to ally, betray, or oppose factions.
+  - **Event Types**:
+    - Dialogue encounters
+    - Rumors and intel
+    - Faction missions or sabotage requests
 
----
-
-## HeistAgent (Updated)
-**Purpose**: Orchestrates heists with more complex outcomes and scaling challenges.
-
-- **New Logic**:
-  - **Partial Success**: Events may now contain a `partial_success` key with a mixed outcome (e.g., loot reduced, notoriety gained, or crew injury).
-  - **Betrayal Events**: Certain outcomes may trigger betrayal (e.g., a rival syndicate turning a contact, or even the Gambler selling out the crew if reputation is too low).
-  - **Arrest Outcomes**: High notoriety failures may result in crew members being captured. They are unavailable until the crew mounts a rescue or pays a ransom.
-  - **Difficulty Scaling**: Event objects may now include a `scaling` field that raises difficulty or adds extra events when notoriety thresholds are passed.
-- **Integration with Reputation**:
-  - High **fear** may cause guards to flee but attract deadlier enemies.
-  - High **respect** may open alternate, easier paths (e.g., sympathetic workers opening side doors).
+- **State**:
+  - Tracks key narrative flags (e.g., “betrayed Nobles”, “allied with Syndicates”).
+  - Unlocks or locks campaign arcs and heists.
 
 ---
 
-## Example Flow (Phase 3)
-1. **CityAgent** starts tracking notoriety (2) and reputation (fear: 3, respect: 1).
-2. The crew plans the **Royal Treasury Heist**.
-3. In **HeistAgent**, an event resolves as a **partial success**: they slip past guards but drop some loot.
-4. The **Gambler** rerolls a failure, succeeds, and doubles loot—but notoriety spikes.
-5. Because notoriety ≥ 10, **elite clockwork riflemen** spawn as reinforcements (from an event with `scaling`).
-6. The heist ends. **CrewAgent** updates: each member gains XP, Scout levels up and improves stealth using an option from `progression.upgrade_options`.
-7. **CityAgent** records that nobles now fear the crew; syndicates may reach out with more dangerous opportunities.
+## CampaignAgent
+**Purpose**: Manages longer arcs across multiple heists.
+
+- **Arcs**:
+  - **Faction Rivalries**: Rising tension between Guilds, Nobles, and Syndicates.
+  - **Power Balance**: Fear vs. respect shaping how factions treat the crew.
+  - **The Clockwork Tower** (optional final arc).
+
+- **Features**:
+  - Tracks progress toward arc resolution (e.g., 3–4 faction heists before climax).
+  - Modifies available heists dynamically based on alliances or betrayals.
+  - Creates “endgame stakes” (e.g., city riots, faction wars, betrayal from within).
 
 ---
 
-### Notes
-- These expansions remain modular. Agents don’t need rewriting—only extensions.
-- `game_data.json` now contains a `progression` block that defines XP thresholds, level caps, and available upgrades. Agents should reference this instead of hardcoding rules.
-- Event objects now support `partial_success` and `scaling` fields, and HeistAgent must process them dynamically.
+## Integration Flow
+1. **FactionAgent** updates standings after a heist.
+2. **NarrativeAgent** injects story events between heists based on standings and reputation.
+3. **CampaignAgent** checks arc progression:
+   - If thresholds reached → unlock special faction heist.
+   - If finale conditions met → unlock **Clockwork Tower** campaign climax.
+
+---
+
+# The Clockwork Tower (Lore Integration)
+
+The **Clockwork Tower** is described in lore as Brasshaven’s central engine of control and power:contentReference[oaicite:1]{index=1}. It would make a strong **final campaign arc**, representing:
+- Guild machinery
+- Noble wealth
+- Syndicate sabotage
+- The city itself turning against the crew
+
+**Recommendation**: 
+- Don’t drop the Clockwork Tower immediately in Phase 4.
+- Instead, **seed it** in faction storylines (rumors, glimpses, blueprints).
+- Use Phase 4 for *branching arcs* where factions either push you toward or away from the Tower.
+- Save the **Clockwork Tower Heist** as the **Phase 5 / Final Campaign** — the ultimate payoff for choices made in Phase 4.
+
+---
+
+## Future Extensions
+- **Side Heists** for arrested crew members (rescue, ransom, or reputation-based outcomes).
+- **Market System** to convert loot into upgrades, healing, or notoriety reduction.
+- **Crew Assists** allowing secondary members to support checks.
+
