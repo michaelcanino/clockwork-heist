@@ -99,6 +99,8 @@ class HeistAgent:
         self.crew_agent = crew_agent
         self.tool_agent = tool_agent
         self.city_agent = city_agent
+        self.tools_used_this_heist = {} 
+
 
     def run_heist(self, heist_id, crew_ids, tool_assignments):
         heist = self.heists.get(heist_id)
@@ -467,12 +469,18 @@ class CityAgent:
                          for f in player_data.get('factions', [])}
         self.unlocked_heists = set([h['id'] for h in player_data.get('starting_heists', [])])
         self.heists_completed = 0
+        self.treasury = 100
+        self.tool_inventory = player_data.get('tool_inventory', {})
 
 
 
     def increase_notoriety(self, amount=1):
         self.notoriety += amount
         print(f"[City Update] Notoriety increased to {self.notoriety}")
+
+    def treasury_value(self):
+        return self.treasury
+
 
     def update_reputation(self, rep_type, amount):
         if rep_type in self.reputation:
@@ -618,6 +626,7 @@ class GameManager:
             self.crew_agent
         )
 
+
         if CHEAT_MODE:
             self.enable_cheat_mode()
 
@@ -629,6 +638,7 @@ class GameManager:
             "crew_members": self.crew_agent.crew_members,
             "reputation": self.city_agent.reputation,
             "heists_completed": self.heists_completed,
+            "tool_inventory": self.city_agent.tool_inventory,
             "factions": self.city_agent.factions,                # NEW
             "completed_triggers": list(self.arc_manager.completed_triggers)
         }
@@ -652,6 +662,9 @@ class GameManager:
             # Restore arc triggers (NEW)
             self.arc_manager.completed_triggers = set(save_data.get('completed_triggers', []))
             self.heists_completed = save_data.get("heists_completed", 0)
+            self.city_agent.tool_inventory = save_data.get("tool_inventory", {})
+
+
 
             print(f"[Game loaded from {filename}.]")
 
@@ -752,11 +765,160 @@ class GameManager:
                 print(f"[Skill Increased] {member['name']}'s {skill.lower()} is now {member['skills'][skill.lower()]}.")
 
     def show_market_menu(self):
-        """Handles the logic for spending loot and managing the hideout."""
-        print("\n--- The Black Market ---")
-        print("Feature coming soon! Here you'll be able to spend your loot.")
-        print(f"Current Treasury: {sum(item['value'] for item in self.city_agent.loot)} coin.")
-        input("Press Enter to return to the main menu...")
+        """Handles spending loot: healing crew, buying tools, and fencing treasures."""
+        while True:
+            print("\n--- The Black Market ---")
+            print(f"Treasury: {self.city_agent.treasury_value()} coin.")
+            print(f"Loot Inventory: {[item['item'] for item in self.city_agent.loot] or 'None'}")
+            print("[1] Heal Injured Crew")
+            print("[2] Buy Tools")
+            print("[3] Fence Loot (convert treasures into coin)")
+            print("[4] Return to Main Menu")
+            choice = input("> ").strip()
+
+            if choice == "1":
+                self._heal_injured_crew()
+            elif choice == "2":
+                self._buy_tools()
+            elif choice == "3":
+                self._fence_loot()
+            elif choice == "4":
+                break
+            else:
+                print("Invalid choice.")
+
+
+
+    def _fence_loot(self):
+        if not self.city_agent.loot:
+            print("You have no treasures to fence.")
+            return
+
+        # --- Calculate multiplier from faction data ---
+        multiplier = 1.0
+        for faction_id, faction in self.city_agent.factions.items():
+            data = next((f for f in self.game_data["factions"] if f["id"] == faction_id), None)
+            if not data:
+                continue
+
+            mods = data.get("fencing_modifiers", {})
+            standing = faction.get("standing", 0)
+
+            if standing >= 3 and "allied" in mods:
+                multiplier *= mods["allied"]
+                print(f"[Faction Bonus] {data['name']} (Allied): x{mods['allied']}")
+            elif standing > 0 and "friendly" in mods:
+                multiplier *= mods["friendly"]
+                print(f"[Faction Bonus] {data['name']} (Friendly): x{mods['friendly']}")
+            elif standing <= -3 and "hostile" in mods:
+                multiplier *= mods["hostile"]
+                print(f"[Faction Penalty] {data['name']} (Hostile): x{mods['hostile']}")
+
+        # --- Fence Menu ---
+        print("\n--- Fence Loot ---")
+        for i, item in enumerate(self.city_agent.loot, 1):
+            adj_value = int(item['value'] * multiplier)
+            print(f"[{i}] {item['item']} (Base: {item['value']} → Fencing: {adj_value} coin)")
+
+        choice = input("Choose loot to fence (number), 'all', or 'back': ").strip()
+        if choice == "back":
+            return
+
+        if choice == "all":
+            total = sum(int(item['value'] * multiplier) for item in self.city_agent.loot)
+            self.city_agent.treasury += total
+            self.city_agent.loot.clear()
+            print(f"All loot fenced for {total} coin! Treasury: {self.city_agent.treasury}")
+            return
+
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(self.city_agent.loot):
+                item = self.city_agent.loot.pop(idx)
+                adj_value = int(item['value'] * multiplier)
+                self.city_agent.treasury += adj_value
+                print(f"Fenced {item['item']} for {adj_value} coin. Treasury: {self.city_agent.treasury}")
+            else:
+                print("Invalid selection.")
+        except ValueError:
+            print("Invalid input.")
+
+
+
+
+    def _heal_injured_crew(self):
+        injured = [m for m in self.crew_agent.crew_members.values() if m.get("status") == "injured"]
+        if not injured:
+            print("No crew members are injured.")
+            return
+
+        healing_cost = self.game_data["market"]["healing_cost"]
+
+        print("\n--- Healing Services ---")
+        for i, member in enumerate(injured, 1):
+            print(f"[{i}] {member['name']} - Heal for {healing_cost} coin (You have {self.city_agent.treasury})")
+
+        choice = input("Choose crew to heal (number) or 'back': ").strip()
+        if choice == "back":
+            return
+
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(injured):
+                member = injured[idx]
+                if self._spend_loot(healing_cost):
+                    member["status"] = "healthy"
+                    print(f"{member['name']} has been healed and is ready for the next heist!")
+            else:
+                print("Invalid selection.")
+        except ValueError:
+            print("Invalid input.")
+
+
+    def _buy_tools(self):
+        tools_for_sale = self.game_data["market"]["tools"]
+
+        print("\n--- Tools for Sale ---")
+        tool_ids = list(tools_for_sale.keys())
+        for i, tool_id in enumerate(tool_ids, 1):
+            tool = self.tool_agent.tools[tool_id]
+            price = tools_for_sale[tool_id]["price"]
+            owned = self.city_agent.tool_inventory.get(tool_id, 0)
+            print(f"[{i}] {tool['name']} - {price} coin (Owned: {owned})")
+
+        choice = input("Choose tool to buy (number) or 'back': ").strip()
+        if choice == "back":
+            return
+
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(tool_ids):
+                tool_id = tool_ids[idx]
+                tool = self.tool_agent.tools[tool_id]
+                price = tools_for_sale[tool_id]["price"]
+
+                if self._spend_loot(price):
+                    self.city_agent.tool_inventory[tool_id] = self.city_agent.tool_inventory.get(tool_id, 0) + 1
+                    print(f"Purchased {tool['name']}! You now own {self.city_agent.tool_inventory[tool_id]}.")
+            else:
+                print("Invalid selection.")
+        except ValueError:
+            print("Invalid input.")
+
+
+
+    def _spend_loot(self, amount):
+        """Try to spend treasury coin. Returns True if successful."""
+        if self.city_agent.treasury < amount:
+            print("Not enough coin!")
+            return False
+
+        self.city_agent.treasury -= amount
+        print(f"Spent {amount} coin. Treasury now: {self.city_agent.treasury}")
+        return True
+
+
+
 
     def show_faction_status(self):
         """Displays current standings with Brasshaven factions."""
@@ -850,20 +1012,76 @@ class GameManager:
 
         # 3. Assign Tools
         tool_assignments = {}
-        print("\nAvailable Tools:")
-        for tool_id, tool in self.tool_agent.tools.items():
-            print(f"  [{tool_id}] {tool['name']} (Usable by: {', '.join(tool['usable_by'])})")
+        if not self.city_agent.tool_inventory:
+            print("\nNo tools available in inventory.")
+        else:
+            print("\nAvailable Tools in Inventory:")
+            for i, (tool_id, count) in enumerate(self.city_agent.tool_inventory.items(), 1):
+                tool = self.tool_agent.tools[tool_id]
+                print(f"[{i}] {tool['name']} (Owned: {count}, Usable by: {', '.join(tool['usable_by'])})")
 
-        for crew_id in chosen_crew_ids:
-            crew_member = self.crew_agent.get_crew_member(crew_id)
-            if not crew_member: continue
+            for crew_id in chosen_crew_ids:
+                member = self.crew_agent.get_crew_member(crew_id)
+                choice = input(f"Assign a tool to {member['name']} ({member['role']})? (Enter number or 'none'): ").strip()
+                if choice.lower() == "none":
+                    continue
 
-            tool_id = input(f"Assign a tool to {crew_member['name']} (or press Enter to skip): ")
-            if tool_id and tool_id in self.tool_agent.tools and self.tool_agent.validate_tool_usage(tool_id, crew_member['role']):
-                tool_assignments[crew_id] = tool_id
-            elif tool_id:
-                print("Invalid or unusable tool. Skipping assignment.")
+                try:
+                    idx = int(choice) - 1
+                    tool_ids = list(self.city_agent.tool_inventory.keys())
+                    if 0 <= idx < len(tool_ids):
+                        tool_id = tool_ids[idx]
 
+                        # ✅ Here’s your snippet in action:
+                        if self.city_agent.tool_inventory.get(tool_id, 0) > 0:
+                            tool_assignments[crew_id] = tool_id
+                            print(f"{member['name']} will take {self.tool_agent.tools[tool_id]['name']} into the heist.")
+                        else:
+                            print("That tool is no longer available.")
+                    else:
+                        print("Invalid choice. Skipping tool assignment.")
+                except ValueError:
+                    print("Invalid input. Skipping tool assignment.")
+
+        # --- after tool assignment loop ---
+
+        if not tool_assignments:
+            choice = input("\nNo tools were assigned. Continue anyway? (yes/no): ").strip().lower()
+            if choice == "no":
+                print("Returning to market so you can buy tools.")
+                return
+
+        # --- Confirmation before starting heist ---
+        print("\n--- Heist Preparation Complete ---")
+        print(f"Crew selected: {[self.crew_agent.get_crew_member(cid)['name'] for cid in chosen_crew_ids]}")
+        if tool_assignments:
+            assigned_list = [self.tool_agent.tools[tid]["name"] for tid in tool_assignments.values()]
+            print(f"Tools assigned: {', '.join(assigned_list)}")
+        else:
+            print("Tools assigned: None")
+
+        choice = input("Proceed with the heist? (yes/no): ").strip().lower()
+        if choice != "yes":
+            print("Heist canceled. Returning to hideout...")
+            return
+        
+        # Deduct tools only now, after confirmation
+        for crew_id, tool_id in tool_assignments.items():
+            if tool_id in self.city_agent.tool_inventory:
+                self.city_agent.tool_inventory[tool_id] -= 1
+                if self.city_agent.tool_inventory[tool_id] <= 0:
+                    del self.city_agent.tool_inventory[tool_id]
+
+            # Initialize per-heist uses
+            tool_data = self.tool_agent.tools[tool_id]
+            max_uses = tool_data.get("uses_per_heist", 1)
+            if crew_id not in self.heist_agent.tools_used_this_heist:
+                self.heist_agent.tools_used_this_heist[crew_id] = {}
+            self.heist_agent.tools_used_this_heist[crew_id][tool_id] = max_uses
+
+
+        
+        
         # 4. Run Heist
         leveled_up_crew = self.heist_agent.run_heist(chosen_heist_id, chosen_crew_ids, tool_assignments)
         

@@ -1,4 +1,18 @@
 {
+  "market": {
+    "healing_cost": 50,
+    "tools": {
+      "tool_lockpick": {"price": 50},
+      "tool_rune": {"price": 80},
+      "tool_gadget": {"price": 60},
+      "tool_explosives": {"price": 120},
+      "tool_disguise": {"price": 70},
+      "tool_alchemy": {"price": 100}
+    }
+  },
+
+  
+  
   "crew_members": [
     {
       "id": "rogue_1",
@@ -598,7 +612,10 @@
       "penalties": [
         "Guild Automatons appear in heists",
         "Prices rise on black market if hostile"
-      ]
+      ],
+      "fencing_modifiers": {
+        "hostile": 0.8
+      }
     },
     {
       "id": "nobles",
@@ -622,7 +639,11 @@
         "Access to smuggler routes (extra loot opportunities)",
         "Fence stolen goods for higher value"
       ],
-      "penalties": ["Betrayals and ambushes more frequent if hostile"]
+      "penalties": ["Betrayals and ambushes more frequent if hostile"],
+      "fencing_modifiers": {
+        "friendly": 1.2,
+        "allied": 1.4
+      }
     }
   ],
   "narrative_events": [
