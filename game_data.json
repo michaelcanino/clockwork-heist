@@ -91,52 +91,75 @@
       "description": "A sharp-eyed lookout, skilled at spotting patrols and warning of dangers ahead. Once per heist, reveal the next random event before it triggers."
     }
   ],
-
   "tools": [
     {
       "id": "tool_lockpick",
       "name": "Lockpicks",
-      "effect": { "type": "bonus", "skill": "lockpicking", "value": 2 },
+      "effect": {
+        "type": "bonus",
+        "skill": "lockpicking",
+        "value": 2
+      },
       "uses_per_heist": 1,
       "usable_by": ["Rogue", "Artificer", "Scout"]
     },
     {
       "id": "tool_rune",
       "name": "Dispel Rune",
-      "effect": { "type": "bonus", "skill": "magic", "value": 2 },
+      "effect": {
+        "type": "bonus",
+        "skill": "magic",
+        "value": 2
+      },
       "uses_per_heist": 1,
       "usable_by": ["Mage", "Alchemist"]
     },
     {
       "id": "tool_gadget",
       "name": "Smoke Bomb",
-      "effect": { "type": "bonus", "skill": "stealth", "value": 2 },
+      "effect": {
+        "type": "bonus",
+        "skill": "stealth",
+        "value": 2
+      },
       "uses_per_heist": 1,
       "usable_by": ["Rogue", "Artificer", "Scout"]
     },
     {
       "id": "tool_explosives",
       "name": "Aether-Charged Explosives",
-      "effect": { "type": "bypass", "check": "lockpicking", "notoriety": 2 },
+      "effect": {
+        "type": "bypass",
+        "check": "lockpicking",
+        "notoriety": 2
+      },
       "uses_per_heist": 1,
       "usable_by": ["Artificer", "Gambler"]
     },
     {
       "id": "tool_disguise",
       "name": "Disguise Kit",
-      "effect": { "type": "difficulty_reduction", "condition": "guard", "value": 2 },
+      "effect": {
+        "type": "difficulty_reduction",
+        "condition": "guard",
+        "value": 2
+      },
       "uses_per_heist": 1,
       "usable_by": ["Rogue", "Scout", "Gambler"]
     },
     {
       "id": "tool_alchemy",
       "name": "Alchemy Kit",
-      "effect": { "type": "special", "id": "alchemy_craft", "skill": "any", "value": 2 },
+      "effect": {
+        "type": "special",
+        "id": "alchemy_craft",
+        "skill": "any",
+        "value": 2
+      },
       "uses_per_heist": 1,
       "usable_by": ["Alchemist"]
     }
   ],
-
   "heists": [
     {
       "id": "heist_1",
@@ -147,8 +170,14 @@
       "required_roles": ["Rogue", "Mage"],
       "max_party_size": 3,
       "potential_loot": [
-        {"item": "Jeweled Dagger", "value": 100},
-        {"item": "Encrypted Ledger", "value": 150}
+        {
+          "item": "Jeweled Dagger",
+          "value": 100
+        },
+        {
+          "item": "Encrypted Ledger",
+          "value": 150
+        }
       ],
       "events": [
         {
@@ -184,8 +213,14 @@
       "required_roles": ["Rogue", "Artificer"],
       "max_party_size": 3,
       "potential_loot": [
-        {"item": "Guild Gold Bars", "value": 200},
-        {"item": "Smuggler’s Map", "value": 120}
+        {
+          "item": "Guild Gold Bars",
+          "value": 200
+        },
+        {
+          "item": "Smuggler’s Map",
+          "value": 120
+        }
       ],
       "events": [
         {
@@ -202,7 +237,9 @@
           "description": "Rival thieves attempt to steal your prize.",
           "check": "combat",
           "difficulty": 5,
-          "requirements": { "combat": 3 },
+          "requirements": {
+            "combat": 3
+          },
           "success": "The rivals retreat, leaving you the spoils.",
           "partial_success": "The rivals flee but take one minor loot item.",
           "failure": "The rivals snatch some loot before fleeing."
@@ -218,8 +255,14 @@
       "required_roles": ["Mage", "Artificer", "Gambler"],
       "max_party_size": 4,
       "potential_loot": [
-        {"item": "Crown Jewels of Brasshaven", "value": 500},
-        {"item": "Aether Core", "value": 300}
+        {
+          "item": "Crown Jewels of Brasshaven",
+          "value": 500
+        },
+        {
+          "item": "Aether Core",
+          "value": 300
+        }
       ],
       "events": [
         {
@@ -227,7 +270,9 @@
           "description": "Clockwork riflemen block the way.",
           "check": "combat",
           "difficulty": 7,
-          "requirements": { "combat": 6 },
+          "requirements": {
+            "combat": 6
+          },
           "success": "The guards are defeated in a fierce clash.",
           "partial_success": "The guards retreat, but notoriety +3.",
           "failure": "The crew is wounded and forced to retreat."
@@ -237,7 +282,9 @@
           "description": "An aether conduit ruptures, flooding the vault with searing energy.",
           "check": "magic",
           "difficulty": 6,
-          "requirements": { "magic": 6 },
+          "requirements": {
+            "magic": 6
+          },
           "success": "The mage channels the surge safely.",
           "partial_success": "You hold the surge but lose 1 loot",
           "failure": "The flood scorches valuables and harms the crew."
@@ -253,8 +300,14 @@
       "required_roles": ["Alchemist", "Scout"],
       "max_party_size": 3,
       "potential_loot": [
-        {"item": "Cursed Relic", "value": 250},
-        {"item": "Stained Glass Shards", "value": 80}
+        {
+          "item": "Cursed Relic",
+          "value": 250
+        },
+        {
+          "item": "Stained Glass Shards",
+          "value": 80
+        }
       ],
       "events": [
         {
@@ -286,8 +339,14 @@
       "required_roles": ["Artificer", "Scout"],
       "max_party_size": 3,
       "potential_loot": [
-        {"item": "Aetherblue Fuel Cell", "value": 200},
-        {"item": "Experimental Schematic", "value": 150}
+        {
+          "item": "Aetherblue Fuel Cell",
+          "value": 200
+        },
+        {
+          "item": "Experimental Schematic",
+          "value": 150
+        }
       ],
       "scaling": {
         "notoriety_threshold": 8,
@@ -308,7 +367,9 @@
           "description": "A Guild Security Automaton clanks into view.",
           "check": "combat",
           "difficulty": 6,
-          "requirements": { "combat": 4 },
+          "requirements": {
+            "combat": 4
+          },
           "success": "The automaton is disabled.",
           "failure": "The automaton sounds the alarm! Notoriety +2."
         }
@@ -323,8 +384,14 @@
       "required_roles": ["Rogue", "Gambler", "Mage"],
       "max_party_size": 4,
       "potential_loot": [
-        {"item": "Skyship Captain’s Log", "value": 250},
-        {"item": "Smuggled Relic from the Eastern Reach", "value": 400}
+        {
+          "item": "Skyship Captain’s Log",
+          "value": 250
+        },
+        {
+          "item": "Smuggled Relic from the Eastern Reach",
+          "value": 400
+        }
       ],
       "events": [
         {
@@ -332,7 +399,9 @@
           "description": "A sudden storm surges over the docks.",
           "check": "magic",
           "difficulty": 6,
-          "requirements": { "magic": 6 },
+          "requirements": {
+            "magic": 6
+          },
           "success": "The storm is diverted safely.",
           "failure": "Storm damages an airship, lose one loot item."
         },
@@ -341,15 +410,61 @@
           "description": "A duel erupts aboard the airship against rival guards.",
           "check": "combat",
           "difficulty": 7,
-          "requirements": { "combat": 6 },
+          "requirements": {
+            "combat": 6
+          },
           "success": "The crew wins the duel.",
           "partial_success": "Victory, but notoriety +3.",
           "failure": "The crew is wounded and forced to retreat."
         }
       ]
+    },
+
+    {
+      "id": "heist_finale_clockwork_tower",
+      "name": "The Clockwork Tower",
+      "xp_success": 20,
+      "xp_fail": 5,
+      "difficulty": 7,
+      "required_roles": ["Rogue", "Mage", "Artificer", "Gambler"],
+      "max_party_size": 5,
+      "potential_loot": [
+        { "item": "The Master Gear of Brasshaven", "value": 1000 },
+        { "item": "Forbidden Aether Codex", "value": 800 }
+      ],
+      "events": [
+        {
+          "id": "event_clockwork_guardian",
+          "description": "An immense clockwork guardian blocks the tower entrance.",
+          "check": "combat",
+          "difficulty": 8,
+          "requirements": { "combat": 6 },
+          "success": "The guardian collapses in a shower of gears.",
+          "partial_success": "It is disabled, but notoriety +3.",
+          "failure": "The guardian crushes the crew. Retreat is forced."
+        },
+        {
+          "id": "event_tower_conduits",
+          "description": "Aether conduits surge wildly inside the tower.",
+          "check": "magic",
+          "difficulty": 8,
+          "requirements": { "magic": 7 },
+          "success": "The flow is stabilized, revealing the tower’s heart.",
+          "partial_success": "You pass, but one loot item is lost to the surge.",
+          "failure": "The surge scorches the crew, inflicting injuries."
+        },
+        {
+          "id": "event_final_chamber",
+          "description": "At the summit, factions converge to claim the Tower!",
+          "check": "stealth",
+          "difficulty": 7,
+          "success": "You outmaneuver them and seize control of the tower.",
+          "partial_success": "You seize the tower, but one faction becomes permanently hostile.",
+          "failure": "The factions overwhelm you. Game Over."
+        }
+      ]
     }
   ],
-
   "random_events": [
     {
       "id": "rand_guard",
@@ -393,7 +508,6 @@
       }
     }
   ],
-
   "special_events": [
     {
       "id": "event_arrest",
@@ -416,9 +530,15 @@
       "success": "The enforcer is neutralized.",
       "partial_success": "You disable the enforcer, but the commotion attracts attention. Notoriety +2.",
       "failure": "The enforcer's assault forces the crew to retreat, abandoning the primary loot."
+    },
+    {
+      "id": "unlock_finale_clockwork_tower",
+      "description": "The path to the Clockwork Tower is revealed. The final heist is now available.",
+      "effect": {
+        "unlock_heist": "heist_finale_clockwork_tower"
+      }
     }
   ],
-
   "player": {
     "starting_notoriety": 0,
     "starting_loot": [],
@@ -428,7 +548,6 @@
       "respect": 0
     }
   },
-
   "progression": {
     "xp_thresholds": [0, 10, 28, 55, 85],
     "level_cap": 5,
@@ -465,7 +584,6 @@
       ]
     }
   },
-
   "factions": [
     {
       "id": "guilds",
@@ -492,9 +610,7 @@
         "Invitations to exclusive heists",
         "Political protection lowers notoriety gain"
       ],
-      "penalties": [
-        "Elite guards and riflemen deployed if hostile"
-      ]
+      "penalties": ["Elite guards and riflemen deployed if hostile"]
     },
     {
       "id": "syndicates",
@@ -506,58 +622,218 @@
         "Access to smuggler routes (extra loot opportunities)",
         "Fence stolen goods for higher value"
       ],
-      "penalties": [
-        "Betrayals and ambushes more frequent if hostile"
-      ]
+      "penalties": ["Betrayals and ambushes more frequent if hostile"]
     }
   ],
-
   "narrative_events": [
     {
       "id": "event_faction_offer_guilds",
-      "trigger": { "faction": "guilds", "standing_min": 2 },
+      "trigger": {
+        "faction": "guilds",
+        "standing_min": 2
+      },
       "description": "A Guildmaster approaches with a contract to sabotage a rival Syndicate operation.",
       "choices": [
         {
           "text": "Accept the contract (ally with Guilds)",
-          "effects": { "faction": { "guilds": "+2", "syndicates": "-2" }, "loot": 100 }
+          "effects": {
+            "faction": {
+              "guilds": "+2",
+              "syndicates": "-2"
+            },
+            "loot": 100
+          }
         },
         {
           "text": "Refuse politely",
-          "effects": { "faction": { "guilds": -1 } }
+          "effects": {
+            "faction": {
+              "guilds": -1
+            }
+          }
         },
         {
           "text": "Warn the Syndicates instead (betray Guilds)",
-          "effects": { "faction": { "guilds": -3, "syndicates": "+3" }, "respect": "+1" }
+          "effects": {
+            "faction": {
+              "guilds": -3,
+              "syndicates": "+3"
+            },
+            "respect": "+1"
+          }
         }
       ]
     },
     {
       "id": "event_faction_offer_nobles",
-      "trigger": { "faction": "nobles", "standing_min": 2 },
+      "trigger": {
+        "faction": "nobles",
+        "standing_min": 2
+      },
       "description": "A noble house seeks your help to recover a stolen heirloom.",
       "choices": [
         {
           "text": "Recover the heirloom (ally with Nobles)",
-          "effects": { "faction": { "nobles": "+2" }, "respect": "+1" }
+          "effects": {
+            "faction": {
+              "nobles": "+2"
+            },
+            "respect": "+1"
+          }
         },
         {
           "text": "Steal the heirloom for yourself",
-          "effects": { "faction": { "nobles": -3 }, "loot": 200, "fear": "+1" }
+          "effects": {
+            "faction": {
+              "nobles": -3
+            },
+            "loot": 200,
+            "fear": "+1"
+          }
         }
       ]
+    },
+    {
+      "id": "event_watch_hounds",
+      "description": "Clockwork hounds from the Brasshaven Watch prowl the streets, sniffing for your crew.",
+      "check": "stealth",
+      "difficulty": 4,
+      "success": "The crew slips away unnoticed.",
+      "partial_success": "The hounds catch your scent briefly. Notoriety +1.",
+      "failure": "A crew member is mauled and injured. Notoriety +2."
+    },
+    {
+      "id": "event_watch_raid",
+      "description": "The Watch storms your hideout during a raid!",
+      "check": "combat",
+      "difficulty": 6,
+      "success": "You drive them back, but the hideout is scarred.",
+      "partial_success": "You hold them off but lose half your stored loot.",
+      "failure": "The raid overwhelms you. All loot lost, notoriety +2."
+    },
+    {
+      "id": "citywide_curfew",
+      "description": "Brasshaven declares a citywide curfew. All eyes are on the streets.",
+      "effect": {
+        "rule_change": "All future notoriety gains are increased by +1."
+      }
+    },
+    {
+      "id": "event_rogue_rivalry",
+      "description": "Silas Quickfingers’ old rival appears, seeking revenge for past betrayal.",
+      "choices": [
+        {
+          "text": "Face the rival in a duel.",
+          "effects": { "crew": { "rogue_1": "+1 combat" }, "respect": "+1" }
+        },
+        {
+          "text": "Pay the rival off.",
+          "effects": { "loot": -100, "fear": "+1" }
+        },
+        {
+          "text": "Betray the rival again.",
+          "effects": { "faction": { "syndicates": "-2" }, "fear": "+2" }
+        }
+      ]
+    },
+    {
+      "id": "event_mage_mentor",
+      "description": "Lyra’s former mentor, now allied with the Guilds, offers her a choice.",
+      "choices": [
+        {
+          "text": "Accept the mentor’s tutelage.",
+          "effects": {
+            "crew": { "mage_1": "+1 magic" },
+            "faction": { "guilds": "+1" }
+          }
+        },
+        {
+          "text": "Reject the offer and fight.",
+          "effects": {
+            "crew": { "mage_1": "injured" },
+            "faction": { "guilds": "-2" }
+          }
+        }
+      ]
+    },
+    {
+      "id": "event_gambler_debt",
+      "description": "Cassian’s gambling debts catch up to him. A noble house demands repayment.",
+      "choices": [
+        {
+          "text": "Pay the debt.",
+          "effects": { "loot": -200, "respect": "+1" }
+        },
+        {
+          "text": "Refuse to pay.",
+          "effects": { "faction": { "nobles": -3 }, "fear": "+2" }
+        },
+        {
+          "text": "Double or nothing — gamble again.",
+          "effects": {
+            "random": [{ "loot": 300 }, { "notoriety": "+3" }]
+          }
+        }
+      ]
+    },
+    {
+      "id": "event_aether_rumors",
+      "description": "Whispers spread of unstable aether conduits deep under Brasshaven.",
+      "choices": [
+        {
+          "text": "Investigate the conduits.",
+          "effects": { "loot": "+50", "respect": "+1" }
+        },
+        {
+          "text": "Ignore the rumors.",
+          "effects": { "fear": "+1" }
+        }
+      ]
+    },
+    {
+      "id": "event_aether_faction_grab",
+      "description": "The factions begin hoarding Aether Cores. Who will you side with?",
+      "choices": [
+        {
+          "text": "Sell stolen cores to the Guilds.",
+          "effects": { "faction": { "guilds": "+2" }, "loot": "+150" }
+        },
+        {
+          "text": "Smuggle them to the Syndicates.",
+          "effects": { "faction": { "syndicates": "+2" }, "fear": "+1" }
+        },
+        {
+          "text": "Keep them for your crew.",
+          "effects": { "loot": "+200", "notoriety": "+2" }
+        }
+      ]
+    },
+    {
+      "id": "aether_collapse_looms",
+      "description": "The aether engines destabilize, threatening to consume Brasshaven.",
+      "effect": {
+        "rule_change": "High-magic random events become more frequent until the final heist."
+      }
     }
   ],
-
   "campaign_arcs": [
     {
       "id": "arc_faction_war",
       "name": "Faction Rivalries",
       "description": "Tensions rise as Guilds, Nobles, and Syndicates vie for control of Brasshaven.",
       "stages": [
-        { "threshold": 3, "event": "event_faction_offer_guilds" },
-        { "threshold": 5, "event": "event_faction_offer_nobles" },
-        { "threshold": 7, "special": "heist_faction_showdown" }
+        {
+          "threshold": 3,
+          "event": "event_faction_offer_guilds"
+        },
+        {
+          "threshold": 5,
+          "event": "event_faction_offer_nobles"
+        },
+        {
+          "threshold": 7,
+          "special": "heist_faction_showdown"
+        }
       ],
       "outcomes": [
         "Allied with a faction unlocks unique tools and perks.",
@@ -569,12 +845,88 @@
       "name": "The Clockwork Tower",
       "description": "Rumors spread of a colossal tower, heart of the city’s control systems.",
       "stages": [
-        { "trigger": "notoriety >= 10", "event": "rumor_clockwork_tower" },
-        { "trigger": "faction_hostile_all", "special": "unlock_finale_clockwork_tower" }
+        {
+          "trigger": "notoriety >= 10",
+          "event": "rumor_clockwork_tower"
+        },
+        {
+          "trigger": "faction_hostile_all",
+          "special": "unlock_finale_clockwork_tower"
+        }
       ],
       "outcomes": [
-        "The final heist: The Clockwork Tower (Phase 5).",
+        "The final heist: The Clockwork Tower.",
         "Your faction alliances determine the Tower’s defenders and outcomes."
+      ]
+    },
+    {
+      "id": "arc_watch_crackdown",
+      "name": "The Watch’s Net",
+      "description": "The Brasshaven Watch escalates countermeasures as your notoriety rises.",
+      "stages": [
+        {
+          "trigger": "notoriety >= 4",
+          "event": "event_watch_hounds"
+        },
+        {
+          "trigger": "notoriety >= 8",
+          "event": "event_watch_raid"
+        },
+        {
+          "trigger": "notoriety >= 12",
+          "special": "citywide_curfew"
+        }
+      ],
+      "outcomes": [
+        "Survive the Watch’s crackdown with permanent notoriety penalties.",
+        "Strike a deal with the Watch to reset one faction hostility."
+      ]
+    },
+    {
+      "id": "arc_personal_legacies",
+      "name": "Echoes of the Past",
+      "description": "Crew members’ pasts return to haunt them.",
+      "stages": [
+        {
+          "trigger": "rogue_1 level >= 2",
+          "event": "event_rogue_rivalry"
+        },
+        {
+          "trigger": "mage_1 level >= 2",
+          "event": "event_mage_mentor"
+        },
+        {
+          "trigger": "gambler_1 level >= 2",
+          "event": "event_gambler_debt"
+        }
+      ],
+      "outcomes": [
+        "Resolve arcs to unlock unique crew upgrades.",
+        "Fail arcs to risk injuries, desertion, or faction hostility."
+      ]
+    },
+    {
+      "id": "arc_aether_collapse",
+      "name": "The Aether Crisis",
+      "description": "The city’s aether-engines destabilize, threatening collapse.",
+      "stages": [
+        {
+          "trigger": "heist_completed >= 3",
+          "event": "event_aether_rumors"
+        },
+        {
+          "trigger": "heist_completed >= 5",
+          "event": "event_aether_faction_grab"
+        },
+        {
+          "trigger": "notoriety >= 9",
+          "special": "aether_collapse_looms"
+        }
+      ],
+      "outcomes": [
+        "Control the aether (Guilds path).",
+        "Weaponize it (Syndicates path).",
+        "Free it (independent Clockwork Tower twist)."
       ]
     }
   ]

@@ -2,6 +2,8 @@ import json
 import random
 import re
 
+CHEAT_MODE = True  # Toggle this to False for normal play
+
 class CrewAgent:
     # Adding outcome constants for clarity
     SUCCESS = "success"
@@ -460,6 +462,13 @@ class CityAgent:
         self.notoriety = player_data.get('notoriety', 0)
         self.loot = list(player_data.get('starting_loot', []))
         self.reputation = player_data.get('reputation', {"fear": 0, "respect": 0})
+        # Initialize factions (NEW)
+        self.factions = {f['id']: {"standing": f['standing'], "name": f['name']}
+                         for f in player_data.get('factions', [])}
+        self.unlocked_heists = set([h['id'] for h in player_data.get('starting_heists', [])])
+        self.heists_completed = 0
+
+
 
     def increase_notoriety(self, amount=1):
         self.notoriety += amount
@@ -477,6 +486,114 @@ class CityAgent:
         self.loot.append(item)
         print(f"[City Update] Loot acquired: {item['item']} (Value: {item['value']})")
 
+class ArcManager:
+    def __init__(self, arcs_data, narrative_events, special_events, city_agent, crew_agent):
+        self.arcs = arcs_data
+        self.narrative_events = {e['id']: e for e in narrative_events}
+        self.special_events = {e['id']: e for e in special_events}
+        self.city_agent = city_agent
+        self.crew_agent = crew_agent
+        self.completed_triggers = set()  # prevent repeating the same stage
+
+    def check_arcs(self):
+        """Check all arcs against current game state."""
+        for arc in self.arcs:
+            for stage in arc['stages']:
+                # Build a unique key to avoid double-triggering
+                trigger_id = f"{arc['id']}:{stage}"
+
+                if trigger_id in self.completed_triggers:
+                    continue
+
+                # Handle notoriety triggers
+                if "trigger" in stage and "notoriety" in stage['trigger']:
+                    threshold = int(stage['trigger'].split(">=")[1].strip())
+                    if self.city_agent.notoriety >= threshold:
+                        self._fire_stage(stage)
+                        self.completed_triggers.add(trigger_id)
+
+                # Handle faction-hostile-all trigger (Clockwork Tower)
+                if stage.get("trigger") == "faction_hostile_all":
+                    if all(f['standing'] < 0 for f in self.city_agent.factions.values()):
+                        self._fire_stage(stage)
+                        self.completed_triggers.add(trigger_id)
+
+                # Handle crew level triggers (personal arcs)
+                if "level" in stage.get("trigger", ""):
+                    parts = stage['trigger'].split()
+                    crew_id, _, _, level_str = parts
+                    level_required = int(level_str)
+                    member = self.crew_agent.get_crew_member(crew_id)
+                    if member and member['level'] >= level_required:
+                        self._fire_stage(stage)
+                        self.completed_triggers.add(trigger_id)
+
+    def _fire_stage(self, stage):
+        """Resolve event or special from a stage."""
+        if "event" in stage:
+            event_id = stage['event']
+            if event_id in self.narrative_events:
+                event = self.narrative_events[event_id]
+                self._present_narrative_event(event)
+        elif "special" in stage:
+            special_id = stage['special']
+            if special_id in self.special_events:
+                event = self.special_events[special_id]
+                print(f"\n[Special Event Triggered] {event['description']}")
+                if "effect" in event and "unlock_heist" in event["effect"]:
+                    heist_id = event["effect"]["unlock_heist"]
+                    if heist_id not in self.city_agent.unlocked_heists:
+                        self.city_agent.unlocked_heists.add(heist_id)
+                        print(f"[Heist Unlocked] {heist_id} is now available!")
+
+
+    def _present_narrative_event(self, event):
+        """Simple console choice system for narrative events."""
+        print(f"\n--- Narrative Event ---")
+        print(event['description'])
+        if 'choices' in event:
+            for i, choice in enumerate(event['choices']):
+                print(f"  [{i+1}] {choice['text']}")
+            choice_idx = -1
+            while choice_idx < 1 or choice_idx > len(event['choices']):
+                try:
+                    choice_idx = int(input("Choose: "))
+                except ValueError:
+                    continue
+            chosen = event['choices'][choice_idx-1]
+            self._apply_effects(chosen.get('effects', {}))
+
+    def _apply_effects(self, effects):
+        """Very simple parser for choice effects."""
+        if 'loot' in effects:
+            if effects['loot'] > 0:
+                self.city_agent.add_loot({"item": "Unknown Loot", "value": int(effects['loot'])})
+            else:
+                # remove loot by value if negative
+                loss = abs(int(effects['loot']))
+                removed = 0
+                while self.city_agent.loot and removed < loss:
+                    self.city_agent.loot.pop()
+                    removed += 1
+                print(f"[Effect] Lost {loss} loot.")
+
+        if 'respect' in effects:
+            self.city_agent.update_reputation('respect', int(effects['respect']))
+        if 'fear' in effects:
+            self.city_agent.update_reputation('fear', int(effects['fear']))
+        if 'faction' in effects:
+            for f, delta in effects['faction'].items():
+                try:
+                    delta = int(str(delta).replace("+", ""))  # handles "+2", "2", -1
+                except ValueError:
+                    print(f"[Warning] Could not parse faction effect {f}: {delta}")
+                    continue
+                self.city_agent.factions[f]['standing'] += delta
+                print(f"[Faction Update] {f} standing changed by {delta}.")
+
+
+
+
 class GameManager:
     def __init__(self):
         with open('game_data.json', 'r', encoding='utf-8') as f:
@@ -493,13 +610,27 @@ class GameManager:
             self.tool_agent,
             self.city_agent
         )
+        self.arc_manager = ArcManager(
+            self.game_data['campaign_arcs'],
+            self.game_data['narrative_events'],
+            self.game_data['special_events'],
+            self.city_agent,
+            self.crew_agent
+        )
+
+        if CHEAT_MODE:
+            self.enable_cheat_mode()
+
 
     def save_game(self, filename="save_game.json"):
         save_data = {
             "notoriety": self.city_agent.notoriety,
             "loot": self.city_agent.loot,
             "crew_members": self.crew_agent.crew_members,
-            "reputation": self.city_agent.reputation
+            "reputation": self.city_agent.reputation,
+            "heists_completed": self.heists_completed,
+            "factions": self.city_agent.factions,                # NEW
+            "completed_triggers": list(self.arc_manager.completed_triggers)
         }
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(save_data, f, indent=4)
@@ -509,13 +640,22 @@ class GameManager:
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 save_data = json.load(f)
+
             self.city_agent.notoriety = save_data['notoriety']
             self.city_agent.loot = save_data['loot']
             self.crew_agent.crew_members = save_data['crew_members']
-            # To support older save files, we use .get()
             self.city_agent.reputation = save_data.get('reputation', {"fear": 0, "respect": 0})
+
+            # Restore factions (NEW)
+            self.city_agent.factions = save_data.get('factions', self.city_agent.factions)
+
+            # Restore arc triggers (NEW)
+            self.arc_manager.completed_triggers = set(save_data.get('completed_triggers', []))
+            self.heists_completed = save_data.get("heists_completed", 0)
+
             print(f"[Game loaded from {filename}.]")
-            # Re-initialize agents that depend on loaded data if necessary
+
+            # Re-init crew agent so XP/levels sync properly
             self.crew_agent = CrewAgent(list(save_data['crew_members'].values()), self.game_data['progression'])
             return True
         except FileNotFoundError:
@@ -553,6 +693,7 @@ class GameManager:
             print("\n[P]lan Heist")
             print("[C]rew Roster") # A good place to see crew details
             print("[M]arket / Hideout") # The new loot sink
+            print("[F]action Status") 
             print("[S]ave Game")
             print("[E]xit Game")
             
@@ -562,6 +703,8 @@ class GameManager:
                 self.plan_and_execute_heist()
             elif action == 'S':
                 self.save_game()
+            elif action == 'F':
+                self.show_faction_status()
             elif action == 'M':
                 self.show_market_menu() # A new method you would need to create
             elif action == 'E':
@@ -614,12 +757,56 @@ class GameManager:
         print("Feature coming soon! Here you'll be able to spend your loot.")
         print(f"Current Treasury: {sum(item['value'] for item in self.city_agent.loot)} coin.")
         input("Press Enter to return to the main menu...")
+
+    def show_faction_status(self):
+        """Displays current standings with Brasshaven factions."""
+        print("\n--- Faction Status ---")
+        for fid, faction in self.city_agent.factions.items():
+            standing = faction.get('standing', 0)
+            name = faction.get('name', fid)
+            # Determine reputation label
+            if standing >= 3:
+                rep = "Allied"
+            elif standing <= -3:
+                rep = "Hostile"
+            elif standing > 0:
+                rep = "Friendly"
+            elif standing < 0:
+                rep = "Unfriendly"
+            else:
+                rep = "Neutral"
+            print(f"{name}: Standing {standing} ({rep})")
+        input("\nPress Enter to return to the main menu...")
+
+    def enable_cheat_mode(self):
+        print("[CHEAT MODE ENABLED] Story progression testing active.")
+
+        # 1. Unlock only early heists
+        for heist_id in ["heist_nobles_manor", "heist_merchants_guild", "heist_cathedral", "heist_foundry"]:
+            self.city_agent.unlocked_heists.add(heist_id)
+
+        # 2. Buff crew so all checks succeed
+        for member in self.crew_agent.crew_members.values():
+            for skill in member['skills']:
+                member['skills'][skill] = 10
+
+        # 3. Start factions at NEUTRAL (not hostile yet!)
+        self.city_agent.factions = {
+            "guilds": {"standing": 0},
+            "nobles": {"standing": 0},
+            "syndicates": {"standing": 0},
+        }
+
+        # 4. Start with notoriety 0 (let it rise naturally)
+        self.city_agent.notoriety = 0
+
     
     def plan_and_execute_heist(self):
         # 1. Choose Heist
         print("\nAvailable Heists:")
         for heist_id, heist in self.heist_agent.heists.items():
-            print(f"  [{heist_id}] {heist['name']} (Difficulty: {heist['difficulty']})")
+            if heist_id in self.city_agent.unlocked_heists or not heist_id.startswith("heist_finale_"):
+                print(f"  [{heist_id}] {heist['name']} (Difficulty: {heist['difficulty']})")
 
         chosen_heist_id = input("Choose a heist to attempt (or 'back' to return): ")
         if chosen_heist_id == 'back':
@@ -679,8 +866,15 @@ class GameManager:
 
         # 4. Run Heist
         leveled_up_crew = self.heist_agent.run_heist(chosen_heist_id, chosen_crew_ids, tool_assignments)
+        
+        self.city_agent.heists_completed += 1
+        
         if leveled_up_crew:
             self._handle_level_ups(leveled_up_crew)
+
+        # After resolving a heist, check for story progression
+        self.arc_manager.check_arcs()
+
 
 
 if __name__ == "__main__":
