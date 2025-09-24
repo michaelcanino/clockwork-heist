@@ -114,7 +114,7 @@
         "skill": "lockpicking",
         "value": 2
       },
-      "uses_per_heist": 1,
+      "uses_per_heist": 2,
       "usable_by": ["Rogue", "Artificer", "Scout"]
     },
     {
@@ -136,7 +136,7 @@
         "skill": "stealth",
         "value": 2
       },
-      "uses_per_heist": 1,
+      "uses_per_heist": 2,
       "usable_by": ["Rogue", "Artificer", "Scout"]
     },
     {
@@ -170,7 +170,7 @@
         "skill": "any",
         "value": 2
       },
-      "uses_per_heist": 1,
+      "uses_per_heist": 2,
       "usable_by": ["Alchemist"]
     }
   ],

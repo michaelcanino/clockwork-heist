@@ -1043,14 +1043,6 @@ class GameManager:
                 except ValueError:
                     print("Invalid input. Skipping tool assignment.")
 
-        # --- after tool assignment loop ---
-
-        if not tool_assignments:
-            choice = input("\nNo tools were assigned. Continue anyway? (yes/no): ").strip().lower()
-            if choice == "no":
-                print("Returning to market so you can buy tools.")
-                return
-
         # --- Confirmation before starting heist ---
         print("\n--- Heist Preparation Complete ---")
         print(f"Crew selected: {[self.crew_agent.get_crew_member(cid)['name'] for cid in chosen_crew_ids]}")
