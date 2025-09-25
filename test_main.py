@@ -20,20 +20,20 @@ class TestGameAgents(unittest.TestCase):
                 }
             ],
             "tools": [
-                {"id": "tool_lockpick", "name": "Lockpicks", "effect": "Boosts lockpicking by +2", "usable_by": ["Rogue"]},
-                {"id": "tool_gadget", "name": "Smoke Bomb", "effect": "Boosts stealth by +2", "usable_by": ["Rogue", "Artificer"]}
+                {"id": "tool_lockpick", "name": "Lockpicks", "effect": {"type": "bonus", "skill": "lockpicking", "value": 2}, "usable_by": ["Rogue"]},
+                {"id": "tool_gadget", "name": "Smoke Bomb", "effect": {"type": "bonus", "skill": "stealth", "value": 2}, "usable_by": ["Rogue", "Artificer"]}
             ],
             "heists": [
                 {
                     "id": "heist_1", "name": "The Noble’s Manor", "events": [
-                        {"id": "event_guard", "description": "A guard patrol", "check": "stealth", "difficulty": 3, "success": "s", "failure": "f"},
-                        {"id": "event_ward", "description": "A magic ward", "check": "magic", "difficulty": 4, "success": "s", "failure": "f"}
+                        {"id": "event_guard", "description": "A guard patrol", "check": "stealth", "difficulty": 3, "success": {"text": "Success"}, "failure": {"text": "Failure"}},
+                        {"id": "event_ward", "description": "A magic ward", "check": "magic", "difficulty": 4, "success": {"text": "Success"}, "failure": {"text": "Failure"}}
                     ],
                     "potential_loot": [{"item": "Dagger", "value": 100}]
                 }
             ],
             "player": {"starting_notoriety": 0, "starting_loot": [], "reputation": {"fear": 0, "respect": 0}},
-            "progression": {"xp_thresholds": [0, 10, 25, 50]},
+            "progression": {"xp_thresholds": [0, 10, 25, 50], "level_cap": 5},
             "special_events": []
         }
         self.crew_agent = main.CrewAgent(self.game_data['crew_members'], self.game_data['progression'])

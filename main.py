@@ -1,8 +1,23 @@
+# ===============================
+# Imports & Constants
+# ===============================
 import json
 import random
 
 CHEAT_MODE = True  # Toggle this to False for normal play
 
+
+# ===============================
+# Utility Functions
+# ===============================
+
+# This section is reserved for helper functions that don't belong to a specific class.
+# Currently, there are no utility functions.
+
+
+# ===============================
+# Agents
+# ===============================
 class CrewAgent:
     # Adding outcome constants for clarity
     SUCCESS = "success"
@@ -92,6 +107,7 @@ class ToolAgent:
         tool = self.tools.get(tool_id)
         return tool and crew_role in tool['usable_by']
 
+
 class HeistAgent:
     def __init__(self, heist_data, random_events_data, special_events_data, crew_agent, tool_agent, city_agent):
         self.heists = {h['id']: h for h in heist_data}
@@ -107,6 +123,7 @@ class HeistAgent:
         self.temporary_effects = {}                # shape: { crew_id: { skill: modifier } }
         self.double_loot_active = False
         self.arcane_reservoir_stored = False
+        self.last_heist_successful = False # Exposed for other systems to check
  
 
     # New helper method in HeistAgent
@@ -186,10 +203,11 @@ class HeistAgent:
                         self.temporary_effects[target_id] = {}
                     skill = effect['skill']
                     value = effect['value']
-                    self.crew_agent.crew_members.get(target_id)
-                    print(f"  > [Effect Applied!] {member['name']}'s {skill} is temporarily modified by {value}!")
-            # Add more effect types here as needed (e.g., 'give_loot', 'lose_loot')
-    
+                    member = self.crew_agent.get_crew_member(target_id) # Correctly get member inside loop
+                    if member:
+                        self.temporary_effects[target_id][skill] = self.temporary_effects[target_id].get(skill, 0) + value
+                        print(f"  > [Effect Applied!] {member['name']}'s {skill} is temporarily modified by {value}!")
+
     
     def run_heist(self, heist_id, crew_ids, tool_assignments):
         heist = self.heists.get(heist_id)
@@ -225,7 +243,7 @@ class HeistAgent:
         avoid_random_event = False
         for crew_id in crew_ids:
             member = self.crew_agent.get_crew_member(crew_id)
-            if 'scout_eagle_of_brasshaven' in member['upgrades']:
+            if member and 'scout_eagle_of_brasshaven' in member.get('upgrades', []):
                 print("[Eagle of Brasshaven] Finn's vigilance allows the crew to bypass an unforeseen complication!")
                 avoid_random_event = True
                 self.abilities_used_this_heist.add('eagle_of_brasshaven')
@@ -263,8 +281,8 @@ class HeistAgent:
         for event in events_to_run:
             # --- Arcane Reservoir Spend ---
             mage_member = self.crew_agent.get_crew_member('mage_1')
-            if ('mage_1' in crew_ids and self.arcane_reservoir_stored and
-                    'mage_arcane_reservoir' in mage_member['upgrades']):
+            if (mage_member and 'mage_1' in crew_ids and self.arcane_reservoir_stored and
+                    'mage_arcane_reservoir' in mage_member.get('upgrades', [])):
                 use_ability = input(f"\n* Event: {event['description']}\n  > Use Lyra's stored success from the Arcane Reservoir to auto-succeed? [Y/N]: ").upper()
                 if use_ability == 'Y':
                     print("  > [Arcane Reservoir] Lyra releases the stored magical success, effortlessly resolving the situation.")
@@ -273,8 +291,8 @@ class HeistAgent:
                     continue
 
             rogue_member = self.crew_agent.get_crew_member('rogue_1')
-            if ('rogue_1' in crew_ids and
-                    'rogue_ghost_in_gears' in rogue_member['upgrades'] and
+            if (rogue_member and 'rogue_1' in crew_ids and
+                    'rogue_ghost_in_gears' in rogue_member.get('upgrades', []) and
                     'ghost_in_the_gears' not in self.abilities_used_this_heist):
 
                 use_ability = input(f"\n* Event: {event['description']}\n  > Use Silas's 'Ghost in the Gears' to bypass this event completely? [Y/N]: ").upper()
@@ -291,7 +309,7 @@ class HeistAgent:
             
             # Alchemist Ability Check
             alchemist_member = self.crew_agent.get_crew_member('alchemist_1')
-            if ('alchemist_1' in crew_ids and 'alchemist_1' not in self.abilities_used_this_heist):
+            if (alchemist_member and 'alchemist_1' in crew_ids and 'alchemist_1' not in self.abilities_used_this_heist):
                 use_ability = input(f"  > Use Alchemist's 'Shielding Elixir' for a +1 bonus to all crew checks in this event? [Y/N]: ").upper()
                 if use_ability == 'Y':
                     event_wide_bonus += 1
@@ -300,8 +318,8 @@ class HeistAgent:
             
             # Artificer "Clockwork Legion" Check
             artificer_member = self.crew_agent.get_crew_member('artificer_1')
-            if ('artificer_1' in crew_ids and
-                    'artificer_clockwork_legion' in artificer_member['upgrades'] and
+            if (artificer_member and 'artificer_1' in crew_ids and
+                    'artificer_clockwork_legion' in artificer_member.get('upgrades', []) and
                     'clockwork_legion' not in self.abilities_used_this_heist):
                 use_ability = input(f"  > Use Dorian's 'Clockwork Legion' for a +2 bonus to all crew checks in this event? [Y/N]: ").upper()
                 if use_ability == 'Y':
@@ -348,8 +366,8 @@ class HeistAgent:
             
             # --- Single-Check Abilities (like Tinker's Edge) ---
             tinker_bonus = 0
-            if 'artificer_1' in crew_ids:
-                if ('artificer_tinkers_edge' in artificer_member['upgrades'] and
+            if 'artificer_1' in crew_ids and artificer_member:
+                if ('artificer_tinkers_edge' in artificer_member.get('upgrades', []) and
                         'tinkers_edge' not in self.abilities_used_this_heist):
                     use_ability = input(f"  > Use Dorian's 'Tinker's Edge' for a +2 bonus on this specific check? [Y/N]: ").upper()
                     if use_ability == 'Y':
@@ -412,12 +430,12 @@ class HeistAgent:
 
             # --- Ability Check (from Level-Up Upgrades) ---
             auto_succeed = False
-            if (event['check'] == 'stealth' and
-                'rogue_shadowstep' in crew_member['upgrades'] and
+            if (crew_member and event['check'] == 'stealth' and
+                'rogue_shadowstep' in crew_member.get('upgrades', []) and
                 'rogue_shadowstep' not in self.abilities_used_this_heist):
                 use_ability = input(f"  > Use {crew_member['name']}'s 'Shadowstep' to automatically succeed? [Y/N]: ").upper()
                 if use_ability == 'Y':
-                    # ... logic
+                    auto_succeed = True
                     self.abilities_used_this_heist.add('rogue_shadowstep')
 
 
@@ -453,8 +471,8 @@ class HeistAgent:
                             self.city_agent.increase_notoriety(2)
                 
                 mage_member = self.crew_agent.get_crew_member('mage_1')
-                if ('mage_1' in crew_ids and
-                        'mage_chronoward' in mage_member['upgrades'] and
+                if (mage_member and 'mage_1' in crew_ids and
+                        'mage_chronoward' in mage_member.get('upgrades', []) and
                         'chronoward' not in self.abilities_used_this_heist):
                     use_ability = input(f"  > A critical failure! Use Lyra's 'Chronoward' to rewind time and reroll? [Y/N]: ").upper()
                     if use_ability == 'Y':
@@ -477,8 +495,8 @@ class HeistAgent:
 
                 # --- Arcane Reservoir Store ---
                 mage_member = self.crew_agent.get_crew_member('mage_1')
-                if ('mage_1' in crew_ids and
-                        'mage_arcane_reservoir' in mage_member['upgrades'] and
+                if (mage_member and 'mage_1' in crew_ids and
+                        'mage_arcane_reservoir' in mage_member.get('upgrades', []) and
                         not self.arcane_reservoir_stored and # Can't store if one is already held
                         'arcane_reservoir_store' not in self.abilities_used_this_heist): # Can only store once
                     store_success = input("  > Store this success in Lyra's Arcane Reservoir for later use? [Y/N]: ").upper()
@@ -585,7 +603,7 @@ class CityAgent:
         # Initialize factions (NEW)
         self.factions = {f['id']: {"standing": f['standing'], "name": f['name']}
                          for f in player_data.get('factions', [])}
-        self.unlocked_heists = set([h['id'] for h in player_data.get('starting_heists', [])])
+        self.unlocked_heists = set(h['id'] for h in player_data.get('starting_heists', []))
         self.heists_completed = 0
         self.treasury = 100
         self.tool_inventory = player_data.get('tool_inventory', {})
@@ -611,6 +629,7 @@ class CityAgent:
     def add_loot(self, item):
         self.loot.append(item)
         print(f"[City Update] Loot acquired: {item['item']} (Value: {item['value']})")
+
 
 class ArcManager:
     def __init__(self, arcs_data, narrative_events, special_events, city_agent, crew_agent):
@@ -729,12 +748,16 @@ class ArcManager:
                 except ValueError:
                     print(f"[Warning] Could not parse faction effect {f}: {delta}")
                     continue
-                self.city_agent.factions[f]['standing'] += delta
-                print(f"[Faction Update] {f} standing changed by {delta}.")
+                if f in self.city_agent.factions:
+                    self.city_agent.factions[f]['standing'] += delta
+                    print(f"[Faction Update] {self.city_agent.factions[f]['name']} standing changed by {delta}.")
 
 
 
 
+# ===============================
+# Game Manager & UI
+# ===============================
 class GameManager:
     def __init__(self):
         with open('game_data.json', 'r', encoding='utf-8') as f:
@@ -773,8 +796,9 @@ class GameManager:
             "heists_completed": self.city_agent.heists_completed,
             "tool_inventory": self.city_agent.tool_inventory,
             "unlocked_heists": list(self.city_agent.unlocked_heists),
-            "factions": self.city_agent.factions,                # NEW
-            "completed_triggers": list(self.arc_manager.completed_triggers)
+            "factions": self.city_agent.factions,
+            "completed_triggers": list(self.arc_manager.completed_triggers),
+            "treasury": self.city_agent.treasury
         }
         with open(filename, 'w', encoding='utf-8') as f:
             json.dump(save_data, f, indent=4)
@@ -785,41 +809,32 @@ class GameManager:
             with open(filename, 'r', encoding='utf-8') as f:
                 save_data = json.load(f)
 
-            self.city_agent.notoriety = save_data['notoriety']
-            self.city_agent.loot = save_data['loot']
+            self.city_agent.notoriety = save_data.get('notoriety', 0)
+            self.city_agent.loot = save_data.get('loot', [])
             saved_crew = save_data.get('crew_members', [])
             self.crew_agent.crew_members = {c['id']: c for c in saved_crew}
+            # Re-init crew agent so XP/levels sync properly
             self.crew_agent = CrewAgent(list(self.crew_agent.crew_members.values()), self.game_data['progression'])
             self.city_agent.reputation = save_data.get('reputation', {"fear": 0, "respect": 0})
-
-            # Restore factions (NEW)
             self.city_agent.factions = save_data.get('factions', self.city_agent.factions)
-
-            # Restore arc triggers (NEW)
             self.arc_manager.completed_triggers = set(save_data.get('completed_triggers', []))
             self.city_agent.heists_completed = save_data.get("heists_completed", 0)
             self.city_agent.tool_inventory = save_data.get("tool_inventory", {})
+            self.city_agent.treasury = save_data.get("treasury", 100)
 
-            # Restore unlocked heists if present; otherwise use defaults
             saved_unlocked = save_data.get("unlocked_heists")
             if saved_unlocked is not None:
                 self.city_agent.unlocked_heists = set(saved_unlocked)
 
-            # If any crew are arrested on load, make sure rescue_heist is available
             if any(m.get("status") == "arrested" for m in self.crew_agent.crew_members.values()):
                 self.city_agent.unlocked_heists.add("rescue_heist")
 
-
-
             print(f"[Game loaded from {filename}.]")
-
-            # Re-init crew agent so XP/levels sync properly
-            self.crew_agent = CrewAgent(list(save_data['crew_members'].values()), self.game_data['progression'])
             return True
         except FileNotFoundError:
             return False
-        except (KeyError, json.JSONDecodeError):
-            print("[Save file is corrupted. Starting a new game.]")
+        except (KeyError, json.JSONDecodeError) as e:
+            print(f"[Save file is corrupted or invalid: {e}. Starting a new game.]")
             return False
 
     def start_game(self):
@@ -832,24 +847,10 @@ class GameManager:
                 print("No save file found. Starting a new game.")
 
         while True:
-            # Watch crackdown if notoriety is too high — but only once
-            if self.city_agent.notoriety >= 12 and "arrest_triggered" not in self.arc_manager.completed_triggers:
-                arrest_event = self.heist_agent.special_events.get('event_arrest')
-                if arrest_event:
-                    # Apply the "failure" effects of the Watch crackdown to a random crew member
-                    crew_ids = list(self.crew_agent.crew_members.keys())
-                    if crew_ids:
-                        target = random.choice(crew_ids)
-                        self.heist_agent._apply_effects(arrest_event['failure']['effects'], crew_ids=[target])
-                        print("The Watch has cracked down! One of your crew has been arrested...")
-                    # Mark as handled so it won't repeat
-                    self.arc_manager.completed_triggers.add("arrest_triggered")
-
-
-
+            self.arc_manager.check_arcs()
 
             print("\n--- Main Menu ---")
-            print(f"Notoriety: {self.city_agent.notoriety} | Reputation: Fear {self.city_agent.reputation['fear']}, Respect {self.city_agent.reputation['respect']}")
+            print(f"Notoriety: {self.city_agent.notoriety} | Treasury: {self.city_agent.treasury} coin | Reputation: Fear {self.city_agent.reputation['fear']}, Respect {self.city_agent.reputation['respect']}")
 
             current_loot = "None"
             if self.city_agent.loot:
@@ -857,19 +858,17 @@ class GameManager:
             print(f"Loot: {current_loot}")
 
             print("\n[P]lan Heist")
-            print("[C]rew Roster") # A good place to see crew details
-            print("[M]arket / Hideout") # The new loot sink
+            print("[C]rew Roster")
+            print("[M]arket / Hideout")
             print("[F]action Status") 
             print("[S]ave Game")
             print("[E]xit Game")
 
-            # Arrested crew options
             arrested_members = [m for m in self.crew_agent.crew_members.values() if m.get("status") == "arrested"]
             if arrested_members:
-                if arrested_members:
-                    print(f"\n[Alert] a member was arrested!")
                 target_name = arrested_members[0]['name']
-                print(f"[B]ribe the Watch: Pay gold to free {target_name}")
+                print(f"\n[Alert] {target_name} was arrested!")
+                print(f"[B]ribe the Watch: Pay coin to free {target_name}")
                 if "rescue_heist" in self.city_agent.unlocked_heists:
                     print(f"[R]escue Mission: Break {target_name} out of the Watch Barracks!")
 
@@ -883,17 +882,13 @@ class GameManager:
             elif action == 'F':
                 self.show_faction_status()
             elif action == 'M':
-                self.show_market_menu() # A new method you would need to create
-
+                self.show_market_menu()
             elif action == 'C':
                 self.show_crew_roster()
-
-            elif action == 'B':
+            elif action == 'B' and arrested_members:
                 self._bribe_for_release()
-
-            elif action == 'R':
+            elif action == 'R' and arrested_members and "rescue_heist" in self.city_agent.unlocked_heists:
                 self._attempt_rescue_heist()
-
             elif action == 'E':
                 print("\nYou melt back into the shadows of Brasshaven...")
                 break
@@ -902,18 +897,21 @@ class GameManager:
 
     def show_crew_roster(self):
         print("\n=== Crew Roster ===")
-        members = self.crew_agent.crew_members  # FIX: correct source
+        members = self.crew_agent.crew_members
         if not members:
             print("No crew members found.")
             return
-        for m in members.values():
+        for m in sorted(members.values(), key=lambda x: x['name']):
             name = m.get("name", "Unknown")
             role = m.get("role", "Unknown")
             status = m.get("status", "active")
             lvl = m.get("level", 1)
             xp = m.get("xp", 0)
             skills = m.get("skills", {})
+            upgrades = m.get("upgrades", [])
             print(f"- {name} [{role}] — Status: {status} — Lv {lvl} ({xp} XP) — Skills: {skills}")
+            if upgrades:
+                print(f"  Upgrades: {', '.join(upgrades)}")
 
 
     
@@ -925,18 +923,21 @@ class GameManager:
         print("\n--- Crew Progression ---")
         for crew_id in leveled_up_crew_ids:
             member = self.crew_agent.get_crew_member(crew_id)
+            if not member: continue
             print(f"\n{member['name']} has leveled up and can learn a new skill!")
 
-            # Get available upgrades
             general_upgrades = self.game_data['progression']['upgrade_options']['general']
             role_upgrades = self.game_data['progression']['upgrade_options'].get(member['role'].lower(), [])
-            available_upgrades = general_upgrades + role_upgrades
+            available_upgrades = [u for u in general_upgrades + role_upgrades if u['id'] not in member.get('upgrades', [])]
+
+            if not available_upgrades:
+                print(f"{member['name']} has already learned all available upgrades!")
+                continue
 
             print("Choose an upgrade:")
             for i, upgrade in enumerate(available_upgrades):
                 print(f"  [{i+1}] {upgrade['text']}")
 
-            # Get player choice
             choice = -1
             while choice < 1 or choice > len(available_upgrades):
                 try:
@@ -945,20 +946,19 @@ class GameManager:
                 except ValueError:
                     print("Invalid input.")
 
-            # ... inside _handle_level_ups ...
             selected_upgrade_obj = available_upgrades[choice - 1]
 
-            # Store the unique ID or the descriptive text. Storing the ID is better.
+            if 'upgrades' not in member:
+                member['upgrades'] = []
             member['upgrades'].append(selected_upgrade_obj['id']) 
             print(f"{member['name']} has learned: '{selected_upgrade_obj['text']}'!")
 
-            # Apply effects immediately
             if 'effects' in selected_upgrade_obj:
                 for effect in selected_upgrade_obj['effects']:
                     if effect.get('type') == 'stat_boost':
                         skill = effect['skill']
                         value = effect['value']
-                        member['skills'][skill] += value
+                        member['skills'][skill] = member['skills'].get(skill, 0) + value
                         print(f"[Skill Increased] {member['name']}'s {skill} is now {member['skills'][skill]}.")
 
     def show_market_menu(self):
@@ -993,23 +993,27 @@ class GameManager:
         if not arrested:
             print("No crew are under arrest.")
             return
-        print("A risky prison break to free your ally...")
-        crew_ids = [cid for cid, m in self.crew_agent.crew_members.items() if m.get("status", "active") == "active"]
-        if not crew_ids:
+
+        active_crew_ids = [cid for cid, m in self.crew_agent.crew_members.items() if m.get("status", "active") == "active"]
+        if not active_crew_ids:
             print("No active crew available for the rescue!")
             return
-        # Simplify: pick active crew automatically or let player choose
-        tool_assignments = {}
-        self.heist_agent.run_heist("rescue_heist", crew_ids[:2], tool_assignments)
-        # If successful: free one arrested member
-        if getattr(self.heist_agent, "last_heist_successful", False):
-            arrested_members = [m for m in self.crew_agent.crew_members.values() if m.get('status') == "arrested"]
-            if arrested_members:
-                freed = arrested_members[0]
+
+        # For simplicity, we use the first 2 available crew members for the rescue
+        crew_for_heist = active_crew_ids[:2]
+        tool_assignments = {} # No tool assignment phase for this special heist
+
+        self.heist_agent.run_heist("rescue_heist", crew_for_heist, tool_assignments)
+
+        if self.heist_agent.last_heist_successful:
+            # Re-check who is arrested, in case the list is outdated
+            arrested_now = [m for m in self.crew_agent.crew_members.values() if m.get('status') == "arrested"]
+            if arrested_now:
+                freed = arrested_now[0]
                 freed['status'] = "active"
-                print(f"{freed['name']} has been freed from the Watch!")
+                print(f"\n[Rescue Successful!] {freed['name']} has been freed from the Watch!")
         else:
-            print("The rescue failed. Your captured crew remain imprisoned for now.")
+            print("\nThe rescue failed. Your captured crew remain imprisoned for now.")
 
 
     
@@ -1018,18 +1022,20 @@ class GameManager:
         if not arrested:
             print("No crew are under arrest.")
             return
+
+        target = arrested[0] # Handle one at a time for simplicity
         cost = 100 + (self.city_agent.notoriety * 5)
-        print(f"Bribe cost: {cost} coin OR 1 loot item per crew member.")
-        for m in arrested:
-            if self.city_agent.treasury < cost:
-                if self.city_agent.loot:
-                    pay_loot = input(f"Not enough coin. Trade 1 loot item instead? [Y/N]: ").upper()
-                    if pay_loot == "Y":
-                        loot_item = self.city_agent.loot.pop(0)  # could let player choose later
-                        m['status'] = "active"
-                        print(f"{m['name']} is freed after the Watch accepts '{loot_item['item']}' as hush payment.")
-                    else:
-                        print("You leave them in the cells for now...")
+        print(f"Bribing the Watch to release {target['name']} will cost {cost} coin.")
+        print(f"You have {self.city_agent.treasury} coin.")
+
+        if self.city_agent.treasury >= cost:
+            confirm = input(f"Pay {cost} coin? [Y/N]: ").upper()
+            if confirm == 'Y':
+                self.city_agent.treasury -= cost
+                target['status'] = "active"
+                print(f"{target['name']} is freed after some coin changes hands.")
+        else:
+            print("You don't have enough coin for the bribe.")
 
 
     
@@ -1038,12 +1044,10 @@ class GameManager:
             print("You have no treasures to fence.")
             return
 
-        # --- Calculate multiplier from faction data ---
         multiplier = 1.0
         for faction_id, faction in self.city_agent.factions.items():
             data = next((f for f in self.game_data["factions"] if f["id"] == faction_id), None)
-            if not data:
-                continue
+            if not data: continue
 
             mods = data.get("fencing_modifiers", {})
             standing = faction.get("standing", 0)
@@ -1058,18 +1062,18 @@ class GameManager:
                 multiplier *= mods["hostile"]
                 print(f"[Faction Penalty] {data['name']} (Hostile): x{mods['hostile']}")
 
-        # --- Fence Menu ---
         print("\n--- Fence Loot ---")
-        for i, item in enumerate(self.city_agent.loot, 1):
+        loot_to_sell = list(self.city_agent.loot) # Create a copy
+        for i, item in enumerate(loot_to_sell, 1):
             adj_value = int(item['value'] * multiplier)
-            print(f"[{i}] {item['item']} (Base: {item['value']} → Fencing: {adj_value} coin)")
+            print(f"[{i}] {item['item']} (Base: {item['value']} -> Fencing: {adj_value} coin)")
 
-        choice = input("Choose loot to fence (number), 'all', or 'back': ").strip()
+        choice = input("Choose loot to fence (number), 'all', or 'back': ").strip().lower()
         if choice == "back":
             return
 
         if choice == "all":
-            total = sum(int(item['value'] * multiplier) for item in self.city_agent.loot)
+            total = sum(int(item['value'] * multiplier) for item in loot_to_sell)
             self.city_agent.treasury += total
             self.city_agent.loot.clear()
             print(f"All loot fenced for {total} coin! Treasury: {self.city_agent.treasury}")
@@ -1077,8 +1081,10 @@ class GameManager:
 
         try:
             idx = int(choice) - 1
-            if 0 <= idx < len(self.city_agent.loot):
-                item = self.city_agent.loot.pop(idx)
+            if 0 <= idx < len(loot_to_sell):
+                item = loot_to_sell.pop(idx)
+                # Find and remove the actual item from the main loot list
+                self.city_agent.loot.remove(item)
                 adj_value = int(item['value'] * multiplier)
                 self.city_agent.treasury += adj_value
                 print(f"Fenced {item['item']} for {adj_value} coin. Treasury: {self.city_agent.treasury}")
@@ -1110,8 +1116,8 @@ class GameManager:
             idx = int(choice) - 1
             if 0 <= idx < len(injured):
                 member = injured[idx]
-                if self._spend_loot(healing_cost):
-                    member["status"] = "active"
+                if self._spend_coin(healing_cost):
+                    member["status"] = "active" # FIX: Set status to active
                     print(f"{member['name']} has been healed and is ready for the next heist!")
             else:
                 print("Invalid selection.")
@@ -1141,7 +1147,7 @@ class GameManager:
                 tool = self.tool_agent.tools[tool_id]
                 price = tools_for_sale[tool_id]["price"]
 
-                if self._spend_loot(price):
+                if self._spend_coin(price):
                     self.city_agent.tool_inventory[tool_id] = self.city_agent.tool_inventory.get(tool_id, 0) + 1
                     print(f"Purchased {tool['name']}! You now own {self.city_agent.tool_inventory[tool_id]}.")
             else:
@@ -1151,7 +1157,7 @@ class GameManager:
 
 
 
-    def _spend_loot(self, amount):
+    def _spend_coin(self, amount):
         """Try to spend treasury coin. Returns True if successful."""
         if self.city_agent.treasury < amount:
             print("Not enough coin!")
@@ -1170,57 +1176,50 @@ class GameManager:
         for fid, faction in self.city_agent.factions.items():
             standing = faction.get('standing', 0)
             name = faction.get('name', fid)
-            # Determine reputation label
-            if standing >= 3:
-                rep = "Allied"
-            elif standing <= -3:
-                rep = "Hostile"
-            elif standing > 0:
-                rep = "Friendly"
-            elif standing < 0:
-                rep = "Unfriendly"
-            else:
-                rep = "Neutral"
+            if standing >= 3: rep = "Allied"
+            elif standing <= -3: rep = "Hostile"
+            elif standing > 0: rep = "Friendly"
+            elif standing < 0: rep = "Unfriendly"
+            else: rep = "Neutral"
             print(f"{name}: Standing {standing} ({rep})")
         input("\nPress Enter to return to the main menu...")
 
     def enable_cheat_mode(self):
         print("[CHEAT MODE ENABLED] Story progression testing active.")
-
-        # 2. Buff crew so all checks succeed
         for member in self.crew_agent.crew_members.values():
             for skill in member['skills']:
                 member['skills'][skill] = 10
-
-        # 3. Start factions at NEUTRAL (not hostile yet!)
         self.city_agent.factions = {
-            "guilds": {"standing": 0},
-            "nobles": {"standing": 0},
-            "syndicates": {"standing": 0},
+            "guilds": {"standing": 0, "name": "The Guilds"},
+            "nobles": {"standing": 0, "name": "The Nobles"},
+            "syndicates": {"standing": 0, "name": "The Syndicates"},
         }
-
-        # 4. Start with notoriety 0 (let it rise naturally)
         self.city_agent.notoriety = 0
 
     
     def plan_and_execute_heist(self):
         print("\nAvailable Heists:")
-        for heist_id, heist in self.heist_agent.heists.items():
-            # Skip rescue heist here — it’s handled separately in the Main Menu
-            if heist_id == "rescue_heist":
-                continue
-            if heist_id in self.city_agent.unlocked_heists or not heist_id.startswith("heist_finale_"):
-                print(f"  [{heist_id}] {heist['name']} (Difficulty: {heist['difficulty']})")
-
-        chosen_heist_id = input("Choose a heist to attempt (or 'back' to return): ")
-        if chosen_heist_id == 'back':
+        available_heists = {
+            h_id: h for h_id, h in self.heist_agent.heists.items()
+            if h_id in self.city_agent.unlocked_heists
+        }
+        if not available_heists:
+            print("No heists are currently available.")
             return
-        if chosen_heist_id not in self.heist_agent.heists:
+
+        for heist_id, heist in available_heists.items():
+            print(f"  [{heist_id}] {heist['name']} (Difficulty: {heist['difficulty']})")
+
+        chosen_heist_id = input("Choose a heist to attempt (or 'back' to return): ").strip()
+        if chosen_heist_id == 'back': return
+        if chosen_heist_id not in available_heists:
             print("Invalid heist ID. Returning to Main Menu.")
             return
 
-        # 2. Select Crew
+        heist = self.heist_agent.heists[chosen_heist_id]
+
         print("\nAvailable Crew Members:")
+        active_crew = {cid: c for cid, c in self.crew_agent.crew_members.items() if c.get('status', 'active') == 'active'}
         xp_thresholds = self.game_data['progression']['xp_thresholds']
         for crew_id, crew in self.crew_agent.crew_members.items():
             level = crew['level']
@@ -1228,109 +1227,66 @@ class GameManager:
             next_lvl_xp = xp_thresholds[level] if level < len(xp_thresholds) else "MAX"
             status = crew.get('status', 'active')
 
-            if status == "injured":
-                print(f"  [X] {crew['name']} ({crew['role']}) - Injured, unavailable")
-            elif status == "arrested":
-                print(f"  [X] {crew['name']} ({crew['role']}) - Arrested by the Watch!")
+            if status != 'active':
+                print(f"  [X] {crew['name']} ({crew['role']}) - {status.upper()}")
             else:
-                print(f"  [{crew_id}] {crew['name']} ({crew['role']}) - "
-                    f"Lvl: {level} ({xp}/{next_lvl_xp} XP) - Skills: {crew['skills']}")
+                print(f"  [{crew_id}] {crew['name']} ({crew['role']}) - Lvl: {level} ({xp}/{next_lvl_xp} XP)")
 
+        chosen_crew_ids_str = input(f"Select up to {heist.get('max_party_size', 3)} crew (e.g., rogue_1,mage_1): ")
+        chosen_crew_ids = [c.strip() for c in chosen_crew_ids_str.split(',') if c.strip()]
 
-        chosen_crew_ids_str = input("Select your crew (e.g., rogue_1,mage_1): ")
-        chosen_crew_ids = [c.strip() for c in chosen_crew_ids_str.split(',')]
-
-        for crew_id in chosen_crew_ids:
-            member = self.crew_agent.get_crew_member(crew_id)
-            if member and member.get('status') == 'injured':
-                print(f"[Invalid Crew] {member['name']} is injured and cannot join the heist. Please plan again.")
-                return # Abort the heist planning
-            if member.get('status') == 'arrested':
-                print(f"[Invalid Crew] {member['name']} has been arrested by the Watch! Bribe or rescue them first.")
-                return  # Abort the heist planning
-
-        heist = self.heist_agent.heists[chosen_heist_id]
-        required_roles = heist.get("required_roles", [])
-        max_party_size = heist.get("max_party_size", len(required_roles))
-
-        # Verify crew size
-        if len(chosen_crew_ids) > max_party_size:
-            print(f"You can only bring up to {max_party_size} crew members.")
+        # --- Validation ---
+        if not chosen_crew_ids:
+            print("No crew selected. Aborting.")
+            return
+        if any(c_id not in active_crew for c_id in chosen_crew_ids):
+            print("An invalid or unavailable crew member was selected. Aborting.")
+            return
+        if len(chosen_crew_ids) > heist.get("max_party_size", 3):
+            print(f"Too many crew members selected. This heist allows a maximum of {heist.get('max_party_size', 3)}.")
             return
 
-        # Verify required roles are included
         crew_roles = [self.crew_agent.get_crew_member(c_id)['role'] for c_id in chosen_crew_ids]
+        required_roles = heist.get("required_roles", [])
         if not all(role in crew_roles for role in required_roles):
             print(f"This heist requires: {', '.join(required_roles)}. You must include them.")
             return
         
-        
-        # 3. Assign Tools
         tool_assignments = {}
-        self.heist_agent.tools_used_this_heist = {}
-        if not self.city_agent.tool_inventory:
-            print("\nNo tools available in inventory.")
-        else:
-            print("\nAvailable Tools in Inventory:")
-            for i, (tool_id, count) in enumerate(self.city_agent.tool_inventory.items(), 1):
-                tool = self.tool_agent.tools[tool_id]
-                print(f"[{i}] {tool['name']} (Owned: {count}, Usable by: {', '.join(tool['usable_by'])})")
-
+        if self.city_agent.tool_inventory:
+            print("\n--- Assign Tools ---")
+            available_tools = list(self.city_agent.tool_inventory.keys())
             for crew_id in chosen_crew_ids:
                 member = self.crew_agent.get_crew_member(crew_id)
-                choice = input(f"Assign a tool to {member['name']} (or 0 to remove):").strip()
-                if choice.lower() == "none":
-                    continue
+                print(f"\nAssign tool to {member['name']} ({member['role']}):")
+                print("  [0] None")
+                for i, tool_id in enumerate(available_tools, 1):
+                    tool = self.tool_agent.tools[tool_id]
+                    if member['role'] in tool['usable_by']:
+                        print(f"  [{i}] {tool['name']} (Owned: {self.city_agent.tool_inventory[tool_id]})")
 
+                choice = input(f"Choose tool (number): ").strip()
                 try:
-                    idx = int(choice) - 1
-                    tool_ids = list(self.city_agent.tool_inventory.keys())
-                    if 0 <= idx < len(tool_ids):
-                        tool_id = tool_ids[idx]
-
-                        # ✅ Here’s your snippet in action:
-                        if self.city_agent.tool_inventory.get(tool_id, 0) > 0:
-                            tool_assignments[crew_id] = tool_id
-                            print(f"{member['name']} will take {self.tool_agent.tools[tool_id]['name']} into the heist.")
-                        else:
-                            print("That tool is no longer available.")
+                    idx = int(choice)
+                    if idx == 0: continue
+                    tool_id_to_assign = available_tools[idx - 1]
+                    if self.tool_agent.validate_tool_usage(tool_id_to_assign, member['role']):
+                         tool_assignments[crew_id] = tool_id_to_assign
+                         print(f"Assigned {self.tool_agent.tools[tool_id_to_assign]['name']}.")
                     else:
-                        print("Invalid choice. Skipping tool assignment.")
-                except ValueError:
-                    print("Invalid input. Skipping tool assignment.")
+                         print("Invalid tool for this crew member's role.")
+                except (ValueError, IndexError):
+                    print("Invalid choice. No tool assigned.")
 
-        # --- Confirmation before starting heist ---
         print("\n--- Heist Preparation Complete ---")
-        print(f"Crew selected: {[self.crew_agent.get_crew_member(cid)['name'] for cid in chosen_crew_ids]}")
-        if tool_assignments:
-            assigned_list = [self.tool_agent.tools[tid]["name"] for tid in tool_assignments.values()]
-            print(f"Tools assigned: {', '.join(assigned_list)}")
-        else:
-            print("Tools assigned: None")
+        print(f"Heist: {heist['name']}")
+        print(f"Crew: {[self.crew_agent.get_crew_member(cid)['name'] for cid in chosen_crew_ids]}")
+        print(f"Tools: {[self.tool_agent.tools[tid]['name'] for tid in tool_assignments.values()] or 'None'}")
 
-        choice = input("Proceed with the heist? (yes/no): ").strip().lower()
-        if choice != "yes":
-            print("Heist canceled. Returning to hideout...")
+        if input("Proceed with the heist? (yes/no): ").strip().lower() != 'yes':
+            print("Heist canceled.")
             return
         
-        # Deduct tools only now, after confirmation
-        for crew_id, tool_id in tool_assignments.items():
-            if tool_id in self.city_agent.tool_inventory:
-                self.city_agent.tool_inventory[tool_id] -= 1
-                if self.city_agent.tool_inventory[tool_id] <= 0:
-                    del self.city_agent.tool_inventory[tool_id]
-
-            # Initialize per-heist uses
-            tool_data = self.tool_agent.tools[tool_id]
-            max_uses = tool_data.get("uses_per_heist", 1)
-            if crew_id not in self.heist_agent.tools_used_this_heist:
-                self.heist_agent.tools_used_this_heist[crew_id] = {}
-            self.heist_agent.tools_used_this_heist[crew_id][tool_id] = max_uses
-
-
-        
-        
-        # 4. Run Heist
         leveled_up_crew = self.heist_agent.run_heist(chosen_heist_id, chosen_crew_ids, tool_assignments)
         
         self.city_agent.heists_completed += 1
@@ -1338,11 +1294,11 @@ class GameManager:
         if leveled_up_crew:
             self._handle_level_ups(leveled_up_crew)
 
-        # After resolving a heist, check for story progression
-        self.arc_manager.check_arcs()
 
 
-
+# ===============================
+# Entry Point
+# ===============================
 if __name__ == "__main__":
     game = GameManager()
     game.start_game()
