@@ -34,7 +34,27 @@ class TestGameAgents(unittest.TestCase):
             ],
             "player": {"starting_notoriety": 0, "starting_loot": [], "reputation": {"fear": 0, "respect": 0}},
             "progression": {"xp_thresholds": [0, 10, 25, 50], "level_cap": 5},
-            "special_events": []
+            "narrative_events": [],
+            "campaign_arcs": [
+                {
+                    "id": "arc_clockwork_tower_tease",
+                    "stages": [
+                        {
+                            "trigger": "faction_hostile_all",
+                            "special": "unlock_finale_clockwork_tower"
+                        }
+                    ]
+                }
+            ],
+            "special_events": [
+                {
+                    "id": "unlock_finale_clockwork_tower",
+                    "description": "The path to the Clockwork Tower is revealed.",
+                    "effect": {
+                        "unlock_heist": "heist_finale_clockwork_tower"
+                    }
+                }
+            ]
         }
         self.crew_agent = main.CrewAgent(self.game_data['crew_members'], self.game_data['progression'])
         self.tool_agent = main.ToolAgent(self.game_data['tools'])
@@ -46,6 +66,13 @@ class TestGameAgents(unittest.TestCase):
             self.crew_agent,
             self.tool_agent,
             self.city_agent
+        )
+        self.arc_manager = main.ArcManager(
+            self.game_data['campaign_arcs'],
+            self.game_data['narrative_events'],
+            self.game_data['special_events'],
+            self.city_agent,
+            self.crew_agent
         )
 
     # --- CrewAgent Tests ---
@@ -133,6 +160,14 @@ class TestGameAgents(unittest.TestCase):
         heist_agent.run_heist('heist_1', crew_ids, tool_assignments)
 
         self.assertEqual(len(self.city_agent.loot), initial_loot_count)
+
+
+    # --- ArcManager Tests ---
+    def test_final_heist_not_unlocked_on_new_game(self):
+        """Verify the final heist is not unlocked at the start of a new game."""
+        # In a new game, factions are empty. The trigger should not fire.
+        self.arc_manager.check_arcs()
+        self.assertNotIn("heist_finale_clockwork_tower", self.city_agent.unlocked_heists)
 
 
 if __name__ == '__main__':

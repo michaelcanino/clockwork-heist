@@ -666,7 +666,7 @@ class ArcManager:
 
                 # Faction hostile all
                 if stage.get("trigger") == "faction_hostile_all":
-                    if all(f['standing'] < 0 for f in self.city_agent.factions.values()):
+                    if self.city_agent.factions and all(f['standing'] < 0 for f in self.city_agent.factions.values()):
                         self._fire_stage(stage)
                         self.completed_triggers.add(trigger_id)
                         continue
