@@ -848,6 +848,13 @@ class GameManager:
         self.city_agent = CityAgent(self.game_data['player'])
         self.crew_agent = CrewAgent(self.game_data['crew_members'], self.game_data['progression'])
         self.tool_agent = ToolAgent(self.game_data['tools'])
+
+        # QOL Settings
+        self.settings = {
+            "auto_use_abilities": "Ask",  # Options: "Ask", "Auto-Use"
+            "show_dice_rolls": True
+        }
+
         self.heist_agent = HeistAgent(
             self.game_data['heists'],
             self.game_data['random_events'],
@@ -864,12 +871,6 @@ class GameManager:
             self.city_agent,
             self.crew_agent
         )
-
-        # QOL Settings
-        self.settings = {
-            "auto_use_abilities": "Ask",  # Options: "Ask", "Auto-Use"
-            "show_dice_rolls": True
-        }
 
         # For narrative flavor text triggers
         self.previous_notoriety = 0
