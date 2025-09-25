@@ -11,8 +11,82 @@ CHEAT_MODE = False  # Toggle this to False for normal play
 # Utility Functions
 # ===============================
 
-# This section is reserved for helper functions that don't belong to a specific class.
-# Currently, there are no utility functions.
+class Fore:
+    """ANSI escape codes for terminal colors."""
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    CYAN = '\033[96m'
+    RESET = '\033[0m'
+
+class Style:
+    """ANSI escape codes for text styles."""
+    RESET_ALL = '\033[0m'
+
+def format_outcome(result, text):
+    """Formats text with color based on the outcome, using ANSI codes."""
+    if result.lower() == "success":
+        return f"{Fore.GREEN}✅ Success: {text}{Style.RESET_ALL}"
+    elif result.lower() == "partial":
+        return f"{Fore.YELLOW}⚠️ Partial: {text}{Style.RESET_ALL}"
+    else:  # failure
+        return f"{Fore.RED}❌ Failure: {text}{Style.RESET_ALL}"
+
+def get_choice(prompt, options, default=None):
+    """
+    Gets user input, allowing for shortcuts (first letter) or full words.
+    `options` is a list of strings, e.g., ["Yes", "No"].
+    `default` is the shortcut letter, e.g., "Y". Always returns the full option string.
+    """
+    options_map = {o[0].upper(): o for o in options}
+    options_display = "/".join([f"[{o[0].upper()}]" + o[1:] for o in options])
+
+    while True:
+        choice_str = f"{prompt} ({options_display}) "
+        choice = input(choice_str).strip().upper()
+
+        if not choice and default:
+            return options_map.get(default.upper())
+
+        if choice in options_map:
+            return options_map[choice]
+
+        for option in options:
+            if choice == option.upper():
+                return option
+
+        print(f"Invalid choice. Please try again.")
+
+
+def choose_from_list(title, items, key="name", exit_choice="back"):
+    """
+    Displays a numbered list of items and prompts for a choice.
+    Returns the selected item, or None if the user chooses to exit.
+    """
+    print(f"\n-- {title} --")
+    if not items:
+        print("No items to choose from.")
+        return None
+
+    for i, item in enumerate(items, 1):
+        display_text = item.get(key, f"Unnamed Item {i}")
+        print(f"[{i}] {display_text}")
+
+    prompt = f"Choose number (or '{exit_choice}' to return): "
+    while True:
+        choice_str = input(prompt).strip().lower()
+        if choice_str == exit_choice:
+            return None
+
+        try:
+            if not choice_str:
+                continue
+            idx = int(choice_str)
+            if 1 <= idx <= len(items):
+                return items[idx - 1]
+        except (ValueError, IndexError):
+            pass # Let the loop handle it
+        print("Invalid selection, try again.")
 
 
 # ===============================
@@ -50,7 +124,7 @@ class CrewAgent:
 
         return leveled_up
 
-    def perform_skill_check(self, crew_id, skill, difficulty, partial_success_margin=1, roll=None, tool_bonus=0, temporary_effects=None):
+    def perform_skill_check(self, crew_id, skill, difficulty, partial_success_margin=1, roll=None, tool_bonus=0, temporary_effects=None, show_roll_details=True):
 
         crew_member = self.get_crew_member(crew_id)
         if not crew_member:
@@ -71,12 +145,13 @@ class CrewAgent:
 
         total_skill = effective_skill + tool_bonus + roll
 
-        print(f"  > {crew_member['name']} attempts {skill} check (Difficulty: {difficulty})")
-        if temp_modifier != 0:
-            print(f"  > Base Skill: {base_skill_value} (Modified to {effective_skill} by temporary effect)")
-        else:
-            print(f"  > Skill: {base_skill_value}")
-        print(f"  > + Tool/Ability Bonus: {tool_bonus} + Roll: {roll} = Total: {total_skill}")
+        if show_roll_details:
+            print(f"  > {crew_member['name']} attempts {skill} check (Difficulty: {difficulty})")
+            if temp_modifier != 0:
+                print(f"  > Base Skill: {base_skill_value} (Modified to {effective_skill} by temporary effect)")
+            else:
+                print(f"  > Skill: {base_skill_value}")
+            print(f"  > + Tool/Ability Bonus: {tool_bonus} + Roll: {roll} = Total: {total_skill}")
 
         if total_skill >= difficulty:
             return self.SUCCESS
@@ -109,13 +184,14 @@ class ToolAgent:
 
 
 class HeistAgent:
-    def __init__(self, heist_data, random_events_data, special_events_data, crew_agent, tool_agent, city_agent):
+    def __init__(self, heist_data, random_events_data, special_events_data, crew_agent, tool_agent, city_agent, settings):
         self.heists = {h['id']: h for h in heist_data}
         self.random_events = random_events_data
         self.special_events = {e['id']: e for e in special_events_data}
         self.crew_agent = crew_agent
         self.tool_agent = tool_agent
         self.city_agent = city_agent
+        self.settings = settings
 
         # Persistent defaults so methods like _apply_effects can be called anytime
         self.tools_used_this_heist = {}            # shape: { crew_id: { tool_id: used_count } }
@@ -125,6 +201,11 @@ class HeistAgent:
         self.arcane_reservoir_stored = False
         self.last_heist_successful = False # Exposed for other systems to check
  
+    def _should_use_ability(self, prompt):
+        """Checks settings and asks player if an ability should be used."""
+        if self.settings['auto_use_abilities'] == 'Auto-Use':
+            return True
+        return get_choice(prompt, ["Yes", "No"], default="N") == "Yes"
 
     # New helper method in HeistAgent
     def _apply_effects(self, effects, crew_ids, active_crew_id, total_loot=None):
@@ -283,8 +364,8 @@ class HeistAgent:
             mage_member = self.crew_agent.get_crew_member('mage_1')
             if (mage_member and 'mage_1' in crew_ids and self.arcane_reservoir_stored and
                     'mage_arcane_reservoir' in mage_member.get('upgrades', [])):
-                use_ability = input(f"\n* Event: {event['description']}\n  > Use Lyra's stored success from the Arcane Reservoir to auto-succeed? [Y/N]: ").upper()
-                if use_ability == 'Y':
+                prompt = f"\n* Event: {event['description']}\n  > Use Lyra's stored success from the Arcane Reservoir to auto-succeed?"
+                if self._should_use_ability(prompt):
                     print("  > [Arcane Reservoir] Lyra releases the stored magical success, effortlessly resolving the situation.")
                     self.arcane_reservoir_stored = False
                     event_outcomes['success'] += 1
@@ -295,8 +376,8 @@ class HeistAgent:
                     'rogue_ghost_in_gears' in rogue_member.get('upgrades', []) and
                     'ghost_in_the_gears' not in self.abilities_used_this_heist):
 
-                use_ability = input(f"\n* Event: {event['description']}\n  > Use Silas's 'Ghost in the Gears' to bypass this event completely? [Y/N]: ").upper()
-                if use_ability == 'Y':
+                prompt = f"\n* Event: {event['description']}\n  > Use Silas's 'Ghost in the Gears' to bypass this event completely?"
+                if self._should_use_ability(prompt):
                     print("  > [Ghost in the Gears] Silas finds a hidden path, and the crew slips past the challenge entirely.")
                     self.abilities_used_this_heist.add('ghost_in_the_gears')
                     event_outcomes['success'] += 1
@@ -310,8 +391,8 @@ class HeistAgent:
             # Alchemist Ability Check
             alchemist_member = self.crew_agent.get_crew_member('alchemist_1')
             if (alchemist_member and 'alchemist_1' in crew_ids and 'alchemist_1' not in self.abilities_used_this_heist):
-                use_ability = input(f"  > Use Alchemist's 'Shielding Elixir' for a +1 bonus to all crew checks in this event? [Y/N]: ").upper()
-                if use_ability == 'Y':
+                prompt = "  > Use Alchemist's 'Shielding Elixir' for a +1 bonus to all crew checks in this event?"
+                if self._should_use_ability(prompt):
                     event_wide_bonus += 1
                     self.abilities_used_this_heist.add('alchemist_1')
                     print("  > [Alchemist's Elixir] The crew feels invigorated by the potion!")
@@ -321,8 +402,8 @@ class HeistAgent:
             if (artificer_member and 'artificer_1' in crew_ids and
                     'artificer_clockwork_legion' in artificer_member.get('upgrades', []) and
                     'clockwork_legion' not in self.abilities_used_this_heist):
-                use_ability = input(f"  > Use Dorian's 'Clockwork Legion' for a +2 bonus to all crew checks in this event? [Y/N]: ").upper()
-                if use_ability == 'Y':
+                prompt = "  > Use Dorian's 'Clockwork Legion' for a +2 bonus to all crew checks in this event?"
+                if self._should_use_ability(prompt):
                     event_wide_bonus += 2
                     self.abilities_used_this_heist.add('clockwork_legion')
                     print(f"  > [Clockwork Legion] A swarm of tiny clockwork helpers aids the crew!")
@@ -369,8 +450,8 @@ class HeistAgent:
             if 'artificer_1' in crew_ids and artificer_member:
                 if ('artificer_tinkers_edge' in artificer_member.get('upgrades', []) and
                         'tinkers_edge' not in self.abilities_used_this_heist):
-                    use_ability = input(f"  > Use Dorian's 'Tinker's Edge' for a +2 bonus on this specific check? [Y/N]: ").upper()
-                    if use_ability == 'Y':
+                    prompt = f"  > Use Dorian's 'Tinker's Edge' for a +2 bonus on this specific check?"
+                    if self._should_use_ability(prompt):
                         print(f"  > [Tinker's Edge] Dorian quickly assembles a gadget to help {crew_member['name']}!")
                         tinker_bonus = 2
                         self.abilities_used_this_heist.add('tinkers_edge')
@@ -411,10 +492,9 @@ class HeistAgent:
                             self.tools_used_this_heist.setdefault(best_crew_id, {})[tool_id] = used + 1
                             print(f"  > {crew_member['name']} uses {tool['name']} to bypass the check, gaining {effect.get('notoriety',0)} notoriety!")
                         elif effect.get('type') == 'special' and effect.get('id') == 'alchemy_craft':
-                            use_kit = input(f"  > Use Alchemy Kit to brew a potion for the whole crew this event? [Y/N]: ").upper()
-                            if use_kit == 'Y':
-                                potion_type = input("    Choose potion type: [S]tealth, [C]ombat, [M]agic: ").upper()
-                                chosen_type = {"S": "stealth", "C": "combat", "M": "magic"}.get(potion_type, "any")
+                            if get_choice("  > Use Alchemy Kit to brew a potion for the whole crew this event?", ["Yes", "No"], default="N") == "Yes":
+                                potion_choice = get_choice("    Choose potion type:", ["Stealth", "Combat", "Magic"])
+                                chosen_type = potion_choice.lower() if potion_choice else "any"
                                 event_wide_bonus += 1
                                 self.tools_used_this_heist.setdefault(best_crew_id, {})[tool_id] = used + 1
                                 print(f"  > {crew_member['name']} brews a {chosen_type} elixir! All crew gain +1 for this event.")
@@ -433,8 +513,8 @@ class HeistAgent:
             if (crew_member and event['check'] == 'stealth' and
                 'rogue_shadowstep' in crew_member.get('upgrades', []) and
                 'rogue_shadowstep' not in self.abilities_used_this_heist):
-                use_ability = input(f"  > Use {crew_member['name']}'s 'Shadowstep' to automatically succeed? [Y/N]: ").upper()
-                if use_ability == 'Y':
+                prompt = f"  > Use {crew_member['name']}'s 'Shadowstep' to automatically succeed?"
+                if self._should_use_ability(prompt):
                     auto_succeed = True
                     self.abilities_used_this_heist.add('rogue_shadowstep')
 
@@ -450,15 +530,16 @@ class HeistAgent:
                     difficulty,
                     roll=roll,
                     tool_bonus=total_bonus + tool_bonus,
-                    temporary_effects=self.temporary_effects
+                    temporary_effects=self.temporary_effects,
+                    show_roll_details=self.settings['show_dice_rolls']
                 )
 
             # Gambler Ability Check
             if result == self.crew_agent.FAILURE:
                 gambler_present = 'gambler_1' in crew_ids
                 if gambler_present and 'gambler_1' not in self.abilities_used_this_heist:
-                    use_ability = input(f"  > A setback! Use Gambler's 'Double or Nothing' to reroll? [Y/N]: ").upper()
-                    if use_ability == 'Y':
+                    prompt = "  > A setback! Use Gambler's 'Double or Nothing' to reroll?"
+                    if self._should_use_ability(prompt):
                         self.abilities_used_this_heist.add('gambler_1')
                         print("  > [Gambler's Wager] Cassian Vey is betting it all on a second chance!")
                         reroll_result = self.crew_agent.perform_skill_check(best_crew_id, event['check'], difficulty, temporary_effects=self.temporary_effects)
@@ -474,8 +555,8 @@ class HeistAgent:
                 if (mage_member and 'mage_1' in crew_ids and
                         'mage_chronoward' in mage_member.get('upgrades', []) and
                         'chronoward' not in self.abilities_used_this_heist):
-                    use_ability = input(f"  > A critical failure! Use Lyra's 'Chronoward' to rewind time and reroll? [Y/N]: ").upper()
-                    if use_ability == 'Y':
+                    prompt = "  > A critical failure! Use Lyra's 'Chronoward' to rewind time and reroll?"
+                    if self._should_use_ability(prompt):
                         print("  > [Chronoward] Time shimmers and resets around the failed action!")
                         self.abilities_used_this_heist.add('chronoward')
                         new_result = self.crew_agent.perform_skill_check(
@@ -499,8 +580,8 @@ class HeistAgent:
                         'mage_arcane_reservoir' in mage_member.get('upgrades', []) and
                         not self.arcane_reservoir_stored and # Can't store if one is already held
                         'arcane_reservoir_store' not in self.abilities_used_this_heist): # Can only store once
-                    store_success = input("  > Store this success in Lyra's Arcane Reservoir for later use? [Y/N]: ").upper()
-                    if store_success == 'Y':
+                    prompt = "  > Store this success in Lyra's Arcane Reservoir for later use?"
+                    if self._should_use_ability(prompt):
                         self.arcane_reservoir_stored = True
                         self.abilities_used_this_heist.add('arcane_reservoir_store')
                         print("  > [Arcane Reservoir] The moment of success is captured and stored.")
@@ -519,7 +600,7 @@ class HeistAgent:
 
             # Unified outcome resolution
             if outcome:
-                print(f"  > {result.title()}: {outcome['text']}")
+                print(format_outcome(result, outcome['text']))
                 self._apply_effects(outcome.get('effects'), crew_ids, best_crew_id, total_loot)
                 self.temporary_effects.clear()
 
@@ -548,7 +629,8 @@ class HeistAgent:
                     best_id,
                     getaway['check'],
                     getaway['difficulty'],
-                    temporary_effects=self.temporary_effects
+                    temporary_effects=self.temporary_effects,
+                    show_roll_details=self.settings['show_dice_rolls']
                 )
 
             # Determine which outcome object to use based on the result
@@ -557,7 +639,7 @@ class HeistAgent:
 
 
             # Print the descriptive text for the player
-            print(f"  > {result.title()}: {outcome['text']}")
+            print(format_outcome(result, outcome['text']))
             
             # Apply the structured effects
             self._apply_effects(outcome.get('effects'), crew_ids, best_id, total_loot)
@@ -570,10 +652,10 @@ class HeistAgent:
         self.last_heist_successful = heist_successful
 
         if heist_successful:
-            print("\n--- Heist Successful! ---")
+            print(f"\n{Fore.GREEN}--- Heist Successful! ---{Style.RESET_ALL}")
             xp_gain = heist.get("xp_success", 8)
             if self.double_loot_active:
-                print("[Gambler's Reward] The loot is doubled!")
+                print(f"{Fore.YELLOW}[Gambler's Reward] The loot is doubled!{Style.RESET_ALL}")
             for loot_item in heist['potential_loot']:
                 self.city_agent.add_loot(loot_item)
                 total_loot.append(loot_item)
@@ -581,7 +663,7 @@ class HeistAgent:
                     self.city_agent.add_loot(loot_item)
                     total_loot.append(loot_item)
         else:
-            print("\n--- Heist Failed! ---")
+            print(f"\n{Fore.RED}--- Heist Failed! ---{Style.RESET_ALL}")
             xp_gain = heist.get("xp_fail", 1)
 
         print(f"\n[Crew Report] Each participating member gains {xp_gain} XP.")
@@ -772,7 +854,8 @@ class GameManager:
             self.game_data['special_events'],
             self.crew_agent,
             self.tool_agent,
-            self.city_agent
+            self.city_agent,
+            self.settings
         )
         self.arc_manager = ArcManager(
             self.game_data['campaign_arcs'],
@@ -782,9 +865,70 @@ class GameManager:
             self.crew_agent
         )
 
+        # QOL Settings
+        self.settings = {
+            "auto_use_abilities": "Ask",  # Options: "Ask", "Auto-Use"
+            "show_dice_rolls": True
+        }
+
+        # For narrative flavor text triggers
+        self.previous_notoriety = 0
+        self.previous_reputation = {"fear": 0, "respect": 0}
+
 
         if CHEAT_MODE:
             self.enable_cheat_mode()
+
+    def _display_narrative_flavor(self):
+        """Checks for and displays narrative flavor text based on state changes."""
+        notoriety = self.city_agent.notoriety
+        if notoriety > 10 and self.previous_notoriety <= 10:
+            print(f"\n{Fore.YELLOW}The streets whisper your crew's name...{Style.RESET_ALL}")
+        if notoriety > 20 and self.previous_notoriety <= 20:
+            print(f"\n{Fore.RED}The Watch has doubled their patrols. The net is tightening.{Style.RESET_ALL}")
+        self.previous_notoriety = notoriety
+
+        respect = self.city_agent.reputation.get('respect', 0)
+        if respect > 5 and self.previous_reputation.get('respect', 0) <= 5:
+            print(f"\n{Fore.CYAN}Word of your honor spreads among the Guilds.{Style.RESET_ALL}")
+
+        fear = self.city_agent.reputation.get('fear', 0)
+        if fear > 5 and self.previous_reputation.get('fear', 0) <= 5:
+            print(f"\n{Fore.RED}Your ruthless reputation precedes you; shadows part where you walk.{Style.RESET_ALL}")
+
+        self.previous_reputation = self.city_agent.reputation.copy()
+
+
+    def show_settings_menu(self):
+        """Allows the player to change game settings."""
+        while True:
+            print("\n--- Game Settings ---")
+
+            # Auto-Use Abilities setting
+            auto_use_status = self.settings['auto_use_abilities']
+            print(f"[1] Ability Usage: {auto_use_status}")
+
+            # Dice Roll Transparency setting
+            dice_roll_status = "Shown" if self.settings['show_dice_rolls'] else "Hidden"
+            print(f"[2] Dice Roll Details: {dice_roll_status}")
+
+            print("[3] Return to Main Menu")
+
+            choice = input("> ").strip()
+
+            if choice == "1":
+                current_mode = self.settings['auto_use_abilities']
+                new_mode = "Auto-Use" if current_mode == "Ask" else "Ask"
+                self.settings['auto_use_abilities'] = new_mode
+                print(f"Ability usage set to: {new_mode}")
+            elif choice == "2":
+                self.settings['show_dice_rolls'] = not self.settings['show_dice_rolls']
+                new_status = "Shown" if self.settings['show_dice_rolls'] else "Hidden"
+                print(f"Dice roll details are now {new_status}.")
+            elif choice == "3":
+                break
+            else:
+                print("Invalid choice.")
 
 
     def save_game(self, filename="save_game.json"):
@@ -841,13 +985,13 @@ class GameManager:
         print("Welcome to The Clockwork Heist!")
         print("="*30)
 
-        choice = input("Start [N]ew Game or [L]oad Game? ").upper()
-        if choice == 'L':
+        if get_choice("Start game?", ["New Game", "Load Game"]) == "Load Game":
             if not self.load_game():
                 print("No save file found. Starting a new game.")
 
         while True:
             self.arc_manager.check_arcs()
+            self._display_narrative_flavor() # Display flavor text each loop
 
             print("\n--- Main Menu ---")
             print(f"Notoriety: {self.city_agent.notoriety} | Treasury: {self.city_agent.treasury} coin | Reputation: Fear {self.city_agent.reputation['fear']}, Respect {self.city_agent.reputation['respect']}")
@@ -861,18 +1005,27 @@ class GameManager:
             print("[C]rew Roster")
             print("[M]arket / Hideout")
             print("[F]action Status") 
-            print("[S]ave Game")
-            print("[E]xit Game")
+            menu_options = {
+                "P": "Plan Heist",
+                "C": "Crew Roster",
+                "M": "Market / Hideout",
+                "F": "Faction Status",
+                "O": "Options / Settings",
+                "S": "Save Game",
+                "E": "Exit Game"
+            }
 
             arrested_members = [m for m in self.crew_agent.crew_members.values() if m.get("status") == "arrested"]
             if arrested_members:
                 target_name = arrested_members[0]['name']
-                print(f"\n[Alert] {target_name} was arrested!")
-                print(f"[B]ribe the Watch: Pay coin to free {target_name}")
+                print(f"\n{Fore.YELLOW}[Alert] {target_name} was arrested!{Style.RESET_ALL}")
+                menu_options["B"] = f"Bribe the Watch to free {target_name}"
                 if "rescue_heist" in self.city_agent.unlocked_heists:
-                    print(f"[R]escue Mission: Break {target_name} out of the Watch Barracks!")
+                    menu_options["R"] = f"Rescue Mission: Break {target_name} out of the Watch Barracks!"
 
-            
+            for key, text in menu_options.items():
+                print(f"[{key}] {text}")
+
             action = input("> ").upper()
 
             if action == 'P':
@@ -881,17 +1034,20 @@ class GameManager:
                 self.save_game()
             elif action == 'F':
                 self.show_faction_status()
+            elif action == 'O':
+                self.show_settings_menu()
             elif action == 'M':
                 self.show_market_menu()
             elif action == 'C':
                 self.show_crew_roster()
-            elif action == 'B' and arrested_members:
+            elif action == 'B' and "B" in menu_options:
                 self._bribe_for_release()
-            elif action == 'R' and arrested_members and "rescue_heist" in self.city_agent.unlocked_heists:
+            elif action == 'R' and "R" in menu_options:
                 self._attempt_rescue_heist()
             elif action == 'E':
-                print("\nYou melt back into the shadows of Brasshaven...")
-                break
+                if get_choice("Are you sure you want to exit?", ["Yes", "No"], default="N") == "Yes":
+                    print("\nYou melt back into the shadows of Brasshaven...")
+                    break
             else:
                 print("Invalid choice. Please try again.")
 
@@ -934,19 +1090,15 @@ class GameManager:
                 print(f"{member['name']} has already learned all available upgrades!")
                 continue
 
-            print("Choose an upgrade:")
-            for i, upgrade in enumerate(available_upgrades):
-                print(f"  [{i+1}] {upgrade['text']}")
+            selected_upgrade_obj = choose_from_list(
+                f"Choose an upgrade for {member['name']}:",
+                available_upgrades,
+                key="text"
+            )
 
-            choice = -1
-            while choice < 1 or choice > len(available_upgrades):
-                try:
-                    choice_str = input(f"Enter number (1-{len(available_upgrades)}): ")
-                    choice = int(choice_str)
-                except ValueError:
-                    print("Invalid input.")
-
-            selected_upgrade_obj = available_upgrades[choice - 1]
+            if not selected_upgrade_obj:
+                print("No upgrade selected.")
+                continue
 
             if 'upgrades' not in member:
                 member['upgrades'] = []
@@ -968,9 +1120,15 @@ class GameManager:
             print(f"Treasury: {self.city_agent.treasury_value()} coin.")
             print(f"Loot Inventory: {[item['item'] for item in self.city_agent.loot] or 'None'}")
             print("[1] Heal Injured Crew")
-            print("[2] Buy Tools")
-            print("[3] Fence Loot (convert treasures into coin)")
-            print("[4] Return to Main Menu")
+            menu = {
+                "1": "Heal Injured Crew",
+                "2": "Buy Tools",
+                "3": "Fence Loot (convert treasures into coin)",
+                "4": "Return to Main Menu"
+            }
+            for key, text in menu.items():
+                print(f"[{key}] {text}")
+
             choice = input("> ").strip()
 
             if choice == "1":
@@ -1029,8 +1187,7 @@ class GameManager:
         print(f"You have {self.city_agent.treasury} coin.")
 
         if self.city_agent.treasury >= cost:
-            confirm = input(f"Pay {cost} coin? [Y/N]: ").upper()
-            if confirm == 'Y':
+            if get_choice(f"Pay {cost} coin?", ["Yes", "No"], default="N") == "Yes":
                 self.city_agent.treasury -= cost
                 target['status'] = "active"
                 print(f"{target['name']} is freed after some coin changes hands.")
@@ -1104,56 +1261,43 @@ class GameManager:
 
         healing_cost = self.game_data["market"]["healing_cost"]
 
-        print("\n--- Healing Services ---")
-        for i, member in enumerate(injured, 1):
-            print(f"[{i}] {member['name']} - Heal for {healing_cost} coin (You have {self.city_agent.treasury})")
+        # Add display text for the menu
+        for member in injured:
+            member['display_text'] = f"{member['name']} - Heal for {healing_cost} coin"
 
-        choice = input("Choose crew to heal (number) or 'back': ").strip()
-        if choice == "back":
-            return
+        member_to_heal = choose_from_list(
+            "Healing Services",
+            injured,
+            key="display_text"
+        )
 
-        try:
-            idx = int(choice) - 1
-            if 0 <= idx < len(injured):
-                member = injured[idx]
-                if self._spend_coin(healing_cost):
-                    member["status"] = "active" # FIX: Set status to active
-                    print(f"{member['name']} has been healed and is ready for the next heist!")
-            else:
-                print("Invalid selection.")
-        except ValueError:
-            print("Invalid input.")
+        if member_to_heal:
+            if self._spend_coin(healing_cost):
+                member_to_heal["status"] = "active"
+                print(f"{member_to_heal['name']} has been healed and is ready for the next heist!")
 
 
     def _buy_tools(self):
-        tools_for_sale = self.game_data["market"]["tools"]
+        tools_for_sale_data = self.game_data["market"]["tools"]
 
-        print("\n--- Tools for Sale ---")
-        tool_ids = list(tools_for_sale.keys())
-        for i, tool_id in enumerate(tool_ids, 1):
-            tool = self.tool_agent.tools[tool_id]
-            price = tools_for_sale[tool_id]["price"]
-            owned = self.city_agent.tool_inventory.get(tool_id, 0)
-            print(f"[{i}] {tool['name']} - {price} coin (Owned: {owned})")
+        # Create a list of tool objects to pass to the chooser
+        tools_list = []
+        for tool_id, info in tools_for_sale_data.items():
+            tool = self.tool_agent.tools.get(tool_id)
+            if tool:
+                owned = self.city_agent.tool_inventory.get(tool_id, 0)
+                tool['display_text'] = f"{tool['name']} - {info['price']} coin (Owned: {owned})"
+                tool['price'] = info['price']
+                tools_list.append(tool)
 
-        choice = input("Choose tool to buy (number) or 'back': ").strip()
-        if choice == "back":
-            return
+        tool_to_buy = choose_from_list("Tools for Sale", tools_list, key="display_text")
 
-        try:
-            idx = int(choice) - 1
-            if 0 <= idx < len(tool_ids):
-                tool_id = tool_ids[idx]
-                tool = self.tool_agent.tools[tool_id]
-                price = tools_for_sale[tool_id]["price"]
-
-                if self._spend_coin(price):
-                    self.city_agent.tool_inventory[tool_id] = self.city_agent.tool_inventory.get(tool_id, 0) + 1
-                    print(f"Purchased {tool['name']}! You now own {self.city_agent.tool_inventory[tool_id]}.")
-            else:
-                print("Invalid selection.")
-        except ValueError:
-            print("Invalid input.")
+        if tool_to_buy:
+            price = tool_to_buy['price']
+            tool_id = tool_to_buy['id']
+            if self._spend_coin(price):
+                self.city_agent.tool_inventory[tool_id] = self.city_agent.tool_inventory.get(tool_id, 0) + 1
+                print(f"Purchased {tool_to_buy['name']}! You now own {self.city_agent.tool_inventory[tool_id]}.")
 
 
 
@@ -1198,25 +1342,36 @@ class GameManager:
 
     
     def plan_and_execute_heist(self):
-        print("\nAvailable Heists:")
-        available_heists = {
-            h_id: h for h_id, h in self.heist_agent.heists.items()
-            if h_id in self.city_agent.unlocked_heists
-        }
-        if not available_heists:
-            print("No heists are currently available.")
+        # --- Quick Status Summary ---
+        print("\n" + "="*20 + " STATUS SUMMARY " + "="*20)
+        print(f"Notoriety: {self.city_agent.notoriety} | Treasury: {self.city_agent.treasury} coin")
+        current_loot = "None"
+        if self.city_agent.loot:
+            current_loot = ', '.join([item['item'] for item in self.city_agent.loot])
+        print(f"Loot on Hand: {current_loot}")
+        print("\n--- Crew Status ---")
+        for member in sorted(self.crew_agent.crew_members.values(), key=lambda m: m['name']):
+            status = member.get('status', 'unknown')
+            status_color = Fore.GREEN
+            if status == 'injured':
+                status_color = Fore.YELLOW
+            elif status == 'arrested':
+                status_color = Fore.RED
+            print(f"  - {member['name']}: {status_color}{status.upper()}{Style.RESET_ALL}")
+        print("="*54)
+
+        available_heists = [h for h_id, h in self.heist_agent.heists.items()
+                            if h_id in self.city_agent.unlocked_heists]
+
+        for h in available_heists:
+            h['display_text'] = f"{h['name']} (Difficulty: {h['difficulty']})"
+
+        heist = choose_from_list("Available Heists", available_heists, key="display_text")
+
+        if not heist:
             return
 
-        for heist_id, heist in available_heists.items():
-            print(f"  [{heist_id}] {heist['name']} (Difficulty: {heist['difficulty']})")
-
-        chosen_heist_id = input("Choose a heist to attempt (or 'back' to return): ").strip()
-        if chosen_heist_id == 'back': return
-        if chosen_heist_id not in available_heists:
-            print("Invalid heist ID. Returning to Main Menu.")
-            return
-
-        heist = self.heist_agent.heists[chosen_heist_id]
+        chosen_heist_id = heist['id']
 
         print("\nAvailable Crew Members:")
         active_crew = {cid: c for cid, c in self.crew_agent.crew_members.items() if c.get('status', 'active') == 'active'}
@@ -1252,38 +1407,42 @@ class GameManager:
             print(f"This heist requires: {', '.join(required_roles)}. You must include them.")
             return
         
-        tool_assignments = {}
         if self.city_agent.tool_inventory:
+            tool_assignments = {}
             print("\n--- Assign Tools ---")
-            available_tools = list(self.city_agent.tool_inventory.keys())
             for crew_id in chosen_crew_ids:
                 member = self.crew_agent.get_crew_member(crew_id)
-                print(f"\nAssign tool to {member['name']} ({member['role']}):")
-                print("  [0] None")
-                for i, tool_id in enumerate(available_tools, 1):
-                    tool = self.tool_agent.tools[tool_id]
-                    if member['role'] in tool['usable_by']:
-                        print(f"  [{i}] {tool['name']} (Owned: {self.city_agent.tool_inventory[tool_id]})")
 
-                choice = input(f"Choose tool (number): ").strip()
-                try:
-                    idx = int(choice)
-                    if idx == 0: continue
-                    tool_id_to_assign = available_tools[idx - 1]
-                    if self.tool_agent.validate_tool_usage(tool_id_to_assign, member['role']):
-                         tool_assignments[crew_id] = tool_id_to_assign
-                         print(f"Assigned {self.tool_agent.tools[tool_id_to_assign]['name']}.")
-                    else:
-                         print("Invalid tool for this crew member's role.")
-                except (ValueError, IndexError):
-                    print("Invalid choice. No tool assigned.")
+                # Filter tools usable by the current member's role
+                usable_tools = []
+                for tool_id, count in self.city_agent.tool_inventory.items():
+                    if count > 0:
+                        tool = self.tool_agent.tools.get(tool_id)
+                        if tool and member['role'] in tool.get('usable_by', []):
+                            tool['display_text'] = f"{tool['name']} (Owned: {count})"
+                            usable_tools.append(tool)
+
+                if not usable_tools:
+                    print(f"No usable tools in inventory for {member['name']} ({member['role']}).")
+                    continue
+
+                assigned_tool = choose_from_list(
+                    f"Assign tool to {member['name']}",
+                    usable_tools,
+                    key='display_text',
+                    exit_choice="none"
+                )
+
+                if assigned_tool:
+                    tool_assignments[crew_id] = assigned_tool['id']
+                    print(f"Assigned {assigned_tool['name']}.")
 
         print("\n--- Heist Preparation Complete ---")
         print(f"Heist: {heist['name']}")
         print(f"Crew: {[self.crew_agent.get_crew_member(cid)['name'] for cid in chosen_crew_ids]}")
         print(f"Tools: {[self.tool_agent.tools[tid]['name'] for tid in tool_assignments.values()] or 'None'}")
 
-        if input("Proceed with the heist? (yes/no): ").strip().lower() != 'yes':
+        if get_choice("Proceed with the heist?", ["Yes", "No"], default="Y") == "No":
             print("Heist canceled.")
             return
         
@@ -1293,6 +1452,10 @@ class GameManager:
         
         if leveled_up_crew:
             self._handle_level_ups(leveled_up_crew)
+
+        # Auto-save after the heist is complete
+        print(f"\n{Fore.CYAN}Progress auto-saved...{Style.RESET_ALL}")
+        self.save_game()
 
 
 

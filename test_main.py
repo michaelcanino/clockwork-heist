@@ -60,13 +60,18 @@ class TestGameAgents(unittest.TestCase):
         self.crew_agent = main.CrewAgent(self.game_data['crew_members'], self.game_data['progression'])
         self.tool_agent = main.ToolAgent(self.game_data['tools'])
         self.city_agent = main.CityAgent(self.game_data['player'])
+        self.settings = {
+            "auto_use_abilities": "Ask",
+            "show_dice_rolls": True
+        }
         self.heist_agent = main.HeistAgent(
             self.game_data['heists'],
             self.game_data.get('random_events', []),
             self.game_data['special_events'],
             self.crew_agent,
             self.tool_agent,
-            self.city_agent
+            self.city_agent,
+            self.settings
         )
         self.arc_manager = main.ArcManager(
             self.game_data['campaign_arcs'],
@@ -135,7 +140,8 @@ class TestGameAgents(unittest.TestCase):
             self.game_data['special_events'],
             self.crew_agent,
             self.tool_agent,
-            self.city_agent
+            self.city_agent,
+            self.settings
         )
         heist_agent.run_heist('heist_1', crew_ids, tool_assignments)
 
@@ -156,7 +162,8 @@ class TestGameAgents(unittest.TestCase):
             self.game_data['special_events'],
             self.crew_agent,
             self.tool_agent,
-            self.city_agent
+            self.city_agent,
+            self.settings
         )
         heist_agent.run_heist('heist_1', crew_ids, tool_assignments)
 
