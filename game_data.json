@@ -982,7 +982,15 @@
     "reputation": {
       "fear": 0,
       "respect": 0
-    }
+    },
+    "starting_heists": [
+      { "id": "heist_1" },
+      { "id": "heist_2" },
+      { "id": "heist_3" },
+      { "id": "heist_4" },
+      { "id": "heist_5" },
+      { "id": "heist_6" }
+    ]
   },
   "progression": {
     "xp_thresholds": [0, 10, 28, 55, 85],

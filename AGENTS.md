@@ -1,206 +1,228 @@
-# AGENTS.md
+# AGENTS.md (Refactored Plan)
 
-This document describes the core agents used in **The Clockwork Heist** and how they interact. It is updated to reflect the current `main.py` and `game_data.json`.
+This document updates the **agent structure** of **The Clockwork Heist** to reflect the proposed single‑file refactor. The game remains easy to upload (still one file), but internally it is now **modularized by section** with clear headers.
+
+---
+
+## File Structure (Single File Organization)
+The code is organized top‑to‑bottom into sections:
+
+```python
+# ===============================
+# Imports & Constants
+# ===============================
+
+# ===============================
+# Utility Functions
+# ===============================
+
+# ===============================
+# Agents
+# ===============================
+class CrewAgent: ...
+class ToolAgent: ...
+class HeistAgent: ...
+class CityAgent: ...
+class ArcManager: ...
+
+# ===============================
+# Game Manager & UI
+# ===============================
+class GameManager: ...
+
+# ===============================
+# Entry Point
+# ===============================
+if __name__ == "__main__":
+    main()
+```
 
 ---
 
 ## CrewAgent
-**Purpose**: Represents individual crew members and resolves skill checks during heists.
+**Purpose**: Represents crew members and resolves skill checks.
 
-- **Inputs**: 
-  - Crew `id` (e.g., `"rogue_1"`)
-  - Skill check type (e.g., `"stealth"`, `"magic"`)
-  - Difficulty of the check
-- **Outputs**: 
-  - One of: `"success"`, `"partial"`, `"failure"`
-- **Behavior**:
-  - Computes the effective skill using base skill, temporary modifiers, tools, and random rolls.
-  - Tracks XP, levels, and unlockable upgrades based on thresholds from `progression.xp_thresholds`.
-  - Applies temporary debuffs (e.g., `"combat –1 until healed"`) parsed from event text.
-- **Notes**:
-  - Unique crew abilities (e.g., Shadowstep, Chronoward) are triggered and managed by `HeistAgent`, not `CrewAgent`.
+- Same responsibilities as before.
+- Fix: `get_crew_member` is the single source of truth.
+- Leveling & XP thresholds remain.
 
 ---
 
 ## ToolAgent
-**Purpose**: Provides structured tool effects from the `game_data.json`.
+**Purpose**: Provides tool effects from `game_data.json`.
 
-- **Method**: `get_tool_effect(tool_id, crew_role)`
-- **Inputs**:
-  - Tool `id` (e.g., `"tool_lockpick"`)
-  - Crew member `role`
-- **Outputs**:
-  - A dictionary describing the tool’s effect. Examples:
-    ```python
-    {'type': 'bonus', 'skill': 'lockpicking', 'value': 2}
-    {'type': 'difficulty_reduction', 'condition': 'guard', 'value': 2}
-    {'type': 'bypass', 'check': 'lockpicking', 'notoriety': 2}
-    ```
-- **Behavior**:
-  - Validates tool usability per crew role.
-  - Prevents multiple uses per heist.
-- **Notes**:
-  - Tool effects are already structured in JSON — no string parsing is needed.
+- No change in responsibilities.
+- Clearly grouped in **Agents** section.
 
 ---
 
 ## HeistAgent
-**Purpose**: Runs full heist sequences, including event resolution, tool use, abilities, and outcomes.
+**Purpose**: Runs full heists, events, and outcomes.
 
-- **Inputs**:
-  - Heist `id`
-  - List of crew `id`s
-  - Tool assignments: `{crew_id: tool_id}`
-- **Internal State**:
-  - `abilities_used_this_heist`: Tracks “once per heist” ability usage.
-  - `temporary_effects`: Stores temporary skill modifiers from partial outcomes.
-  - `double_loot_active`: True if Gambler’s reroll succeeds.
-  - `arcane_reservoir_stored`: Tracks Mage’s stored success.
-- **Key Features**:
-  - **Event Sequencing**: Runs main events, inserts random events (25% chance), and notoriety-triggered events.
-  - **Difficulty Scaling**: Increases difficulty or adds events when `notoriety` passes thresholds.
-  - **Partial Success Handling**: Applies side effects (notoriety, debuffs, loot loss) when outcomes fall just short.
-  - **Ability Resolution**: Checks for and prompts use of crew upgrades (e.g., Shadowstep, Clockwork Legion, Chronoward).
-  - **Tool Integration**: Applies bonuses, difficulty reductions, bypasses, or notoriety trade-offs.
-  - **Special Outcomes**: Injuries, arrests, or unavailable crew handled dynamically.
-- **Outputs**:
-  - Narrated heist flow printed to console.
-  - Updated `CityAgent` state (loot, notoriety, reputation).
-  - XP awarded to participating crew.
+- **Refactor Changes:**
+  - `self.last_heist_successful` added (exposed to other systems).
+  - Tool/ability tracking reset at the start of each heist.
+  - `_apply_effects` now consistently calls `crew_agent.get_crew_member`.
+  - Rescue heist frees crew **only if** the heist succeeds.
 
 ---
 
 ## CityAgent
-**Purpose**: Tracks the player’s global state within Brasshaven.
+**Purpose**: Global player state.
 
-- **State**:
-  - `notoriety`: Increases with alarms, bypasses, or failures.
-  - `reputation`: Tracks `fear` and `respect` and influences event outcomes.
-  - `loot`: Inventory of items gained during heists.
-- **Methods**:
-  - `increase_notoriety(amount)`
-  - `update_reputation(rep_type, amount)`
-  - `add_loot(item)`
-- **Notes**:
-  - High notoriety may spawn special events (e.g., elite enforcers).
-  - Fear vs. respect influences random event difficulty and narrative outcomes.
+- **Refactor Changes:**
+  - `unlocked_heists` saved and loaded.
+  - Loot, reputation, treasury unchanged.
+
+---
+
+## ArcManager
+**Purpose**: Manages story arcs and narrative events.
+
+- **Refactor Changes:**
+  - Uses `completed_triggers` to guard against repeating the same event (e.g., Watch crackdown).
+  - Narrative events remain inline with `print` + `input` flow.
 
 ---
 
 ## GameManager
-**Purpose**: Central controller of the game loop, menus, and persistence.
+**Purpose**: Central loop, menus, save/load.
 
-- **Responsibilities**:
-  - Handles save/load from `save_game.json` (including `reputation` and crew state).
-  - Main menu options:
-    - `[P]lan Heist`: Choose heist, crew, and tools.
-    - `[C]rew Roster`: View crew stats and upgrades.
-    - `[M]arket`: (WIP) Spend loot and manage resources.
-    - `[S]ave Game`: Save progress.
-    - `[E]xit Game`: Exit the program.
-- **Progression**:
-  - After each heist, awards XP and prompts for upgrade selection.
-  - Applies chosen skill boosts or unlocks new abilities.
+- **Refactor Changes:**
+  - Menu system grouped cleanly.
+  - Crew roster shows from `crew_agent.crew_members` (fix).
+  - Healing resets crew status to `"active"`.
+  - Save/load handles `unlocked_heists`.
 
 ---
 
-## Example Flow
-1. **GameManager** starts and loads or initializes the game.
-2. The player chooses **[P]lan Heist**.
-3. **HeistAgent** executes events, triggering tool effects, crew abilities, and random events.
-4. Outcomes (success, partial, failure) modify notoriety, reputation, and crew status.
-5. **CityAgent** records loot and updates the city state.
-6. **CrewAgent** applies XP and handles level-ups.
-7. Control returns to the main menu, allowing the player to save, spend loot, or attempt another heist.
+## Entry Point
+**Purpose**: Keeps file upload simple.
+
+- Game launches with:
+  ```python
+  if __name__ == "__main__":
+      gm = GameManager()
+      gm.start_game()
+  ```
 
 ---
 
-# Phase 4 – Factions & Narrative
-
-This phase introduces **factions**, **branching storylines**, and **multi-heist arcs**. These systems layer on top of the existing Crew/Heist/City framework.
-
----
-
-## FactionAgent
-**Purpose**: Represents the major Brasshaven factions and tracks the crew’s standing with them.
-
-- **Factions**:
-  - **Guilds** (industry, invention, profit)
-  - **Nobles** (wealth, prestige, political power)
-  - **Syndicates** (underworld, rival thieves, black markets)
-
-- **State**:
-  - Reputation per faction: `allied`, `neutral`, or `hostile`.
-  - Favor score (numeric meter, e.g., –10 to +10).
-  - Faction perks: discounts, safehouses, unique tools.
-  - Faction threats: stronger enemies, assassins, blockades.
-
-- **Integration**:
-  - Updated after each heist depending on targets, choices, and outcomes.
-  - Influences heist difficulty (e.g., hostile Guild = more automatons).
-  - Determines story branches (who offers contracts, betrayals, or alliances).
+## Benefits of This Refactor
+- **Clarity**: Each class lives in its own clearly marked section.
+- **Consistency**: All state transitions use the same values (e.g., `active`, `injured`, `arrested`).
+- **Robustness**: Fixes to roster, healing, rescue, tool resets, and save/load.
+- **Upload‑Friendly**: Still just one `main.py` file, no external Python modules.
 
 ---
 
-## NarrativeAgent
-**Purpose**: Drives branching story events and between-heist narrative choices.
+# QOL / UX Enhancement Plan for `main.py`
 
-- **Features**:
-  - **Between-Heist Events**: Story beats triggered by notoriety, faction standing, or campaign progress.
-  - **Choices & Consequences**: Options to ally, betray, or oppose factions.
-  - **Event Types**:
-    - Dialogue encounters
-    - Rumors and intel
-    - Faction missions or sabotage requests
-
-- **State**:
-  - Tracks key narrative flags (e.g., “betrayed Nobles”, “allied with Syndicates”).
-  - Unlocks or locks campaign arcs and heists.
+This document lists planned Quality of Life (QOL) and User Experience (UX) improvements for **The Clockwork Heist**.
 
 ---
 
-## CampaignAgent
-**Purpose**: Manages longer arcs across multiple heists.
+## 1. Streamlined Input Handling
+- Add a `get_choice(prompt, options, default=None)` helper.
+- Accept both **shortcuts** (e.g., `Y/N`) and **full words** (`Yes/No`).
+- Allow **defaults** for smoother play.
 
-- **Arcs**:
-  - **Faction Rivalries**: Rising tension between Guilds, Nobles, and Syndicates.
-  - **Power Balance**: Fear vs. respect shaping how factions treat the crew.
-  - **The Clockwork Tower** (optional final arc).
-
-- **Features**:
-  - Tracks progress toward arc resolution (e.g., 3–4 faction heists before climax).
-  - Modifies available heists dynamically based on alliances or betrayals.
-  - Creates “endgame stakes” (e.g., city riots, faction wars, betrayal from within).
-
----
-
-## Integration Flow
-1. **FactionAgent** updates standings after a heist.
-2. **NarrativeAgent** injects story events between heists based on standings and reputation.
-3. **CampaignAgent** checks arc progression:
-   - If thresholds reached → unlock special faction heist.
-   - If finale conditions met → unlock **Clockwork Tower** campaign climax.
+```python
+def get_choice(prompt, options, default=None):
+    options_map = {o[0].upper(): o for o in options}
+    while True:
+        choice = input(f"{prompt} {options} ").strip().upper()
+        if not choice and default:
+            return default
+        if choice in options_map:
+            return options_map[choice]
+        if choice in [o.upper() for o in options]:
+            return choice.capitalize()
+        print(f"Invalid choice. Try again: {options}")
+```
 
 ---
 
-# The Clockwork Tower (Lore Integration)
+## 2. Colorized Output for Readability
+- Use **Colorama** for cross-platform colored text.
+- Green = Success, Yellow = Partial, Red = Failure, Cyan = Notifications.
 
-The **Clockwork Tower** is described in lore as Brasshaven’s central engine of control and power:contentReference[oaicite:1]{index=1}. It would make a strong **final campaign arc**, representing:
-- Guild machinery
-- Noble wealth
-- Syndicate sabotage
-- The city itself turning against the crew
+```python
+from colorama import Fore, Style
 
-**Recommendation**: 
-- Don’t drop the Clockwork Tower immediately in Phase 4.
-- Instead, **seed it** in faction storylines (rumors, glimpses, blueprints).
-- Use Phase 4 for *branching arcs* where factions either push you toward or away from the Tower.
-- Save the **Clockwork Tower Heist** as the **Phase 5 / Final Campaign** — the ultimate payoff for choices made in Phase 4.
+def format_outcome(result, text):
+    if result == "success":
+        return f"{Fore.GREEN}✅ Success: {text}{Style.RESET_ALL}"
+    elif result == "partial":
+        return f"{Fore.YELLOW}⚠️ Partial: {text}{Style.RESET_ALL}"
+    else:
+        return f"{Fore.RED}❌ Failure: {text}{Style.RESET_ALL}"
+```
 
 ---
 
-## Future Extensions
-- **Side Heists** for arrested crew members (rescue, ransom, or reputation-based outcomes).
-- **Market System** to convert loot into upgrades, healing, or notoriety reduction.
-- **Crew Assists** allowing secondary members to support checks.
+## 3. Crew & Tool Selection UX
+- Replace raw ID typing with **numbered menus**.
+- Use `choose_from_list()` for crew, tools, or heists.
+
+```python
+def choose_from_list(title, items, key="name"):
+    print(f"\n-- {title} --")
+    for i, item in enumerate(items, 1):
+        print(f"[{i}] {item[key]}")
+    while True:
+        try:
+            idx = int(input("Choose number: "))
+            if 1 <= idx <= len(items):
+                return items[idx-1]
+        except ValueError:
+            pass
+        print("Invalid selection, try again.")
+```
+
+---
+
+## 4. Quick Status Summary
+- Show **crew status, notoriety, treasury, loot** before each heist.
+- Helps decision-making without extra menus.
+
+---
+
+## 5. Auto-Save on Exit & Retry
+- Enable **auto-save after every heist**.
+- On startup, prompt: `Continue / New Game`.
+
+---
+
+## 6. Narrative Flow Enhancements
+- Flavor text after key events:
+  - High notoriety → *“The streets whisper your crew’s name...”*
+  - Gained respect → *“Word of honor spreads among the Guilds.”*
+
+---
+
+## 7. Skip Repetitive Prompts
+- Add **settings toggle** in `GameManager`:
+  - `Always Ask`
+  - `Auto-Use` (abilities auto-trigger when optimal)
+
+---
+
+## 8. Dice Roll Transparency
+- Add toggle to **show/hide dice rolls** for immersion.
+- Could be set via `CHEAT_MODE` or a new `DEBUG_MODE` flag.
+
+---
+
+## ✅ Implementation Order
+1. Add helper functions (`get_choice`, `choose_from_list`, `format_outcome`).
+2. Replace `input()` calls in `HeistAgent` and `GameManager`.
+3. Add **status summary panel** before each heist.
+4. Integrate **color-coded outcomes**.
+5. Enable **auto-save after heists**.
+6. Add **narrative flavor lines** for immersion.
+7. Implement **ability auto-use settings**.
+8. Add **dice transparency toggle**.
+
+
 

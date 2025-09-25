@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import main
+import json
 
 class TestGameAgents(unittest.TestCase):
 
@@ -20,21 +21,41 @@ class TestGameAgents(unittest.TestCase):
                 }
             ],
             "tools": [
-                {"id": "tool_lockpick", "name": "Lockpicks", "effect": "Boosts lockpicking by +2", "usable_by": ["Rogue"]},
-                {"id": "tool_gadget", "name": "Smoke Bomb", "effect": "Boosts stealth by +2", "usable_by": ["Rogue", "Artificer"]}
+                {"id": "tool_lockpick", "name": "Lockpicks", "effect": {"type": "bonus", "skill": "lockpicking", "value": 2}, "usable_by": ["Rogue"]},
+                {"id": "tool_gadget", "name": "Smoke Bomb", "effect": {"type": "bonus", "skill": "stealth", "value": 2}, "usable_by": ["Rogue", "Artificer"]}
             ],
             "heists": [
                 {
                     "id": "heist_1", "name": "The Noble’s Manor", "events": [
-                        {"id": "event_guard", "description": "A guard patrol", "check": "stealth", "difficulty": 3, "success": "s", "failure": "f"},
-                        {"id": "event_ward", "description": "A magic ward", "check": "magic", "difficulty": 4, "success": "s", "failure": "f"}
+                        {"id": "event_guard", "description": "A guard patrol", "check": "stealth", "difficulty": 3, "success": {"text": "Success"}, "failure": {"text": "Failure"}},
+                        {"id": "event_ward", "description": "A magic ward", "check": "magic", "difficulty": 4, "success": {"text": "Success"}, "failure": {"text": "Failure"}}
                     ],
                     "potential_loot": [{"item": "Dagger", "value": 100}]
                 }
             ],
             "player": {"starting_notoriety": 0, "starting_loot": [], "reputation": {"fear": 0, "respect": 0}},
-            "progression": {"xp_thresholds": [0, 10, 25, 50]},
-            "special_events": []
+            "progression": {"xp_thresholds": [0, 10, 25, 50], "level_cap": 5},
+            "narrative_events": [],
+            "campaign_arcs": [
+                {
+                    "id": "arc_clockwork_tower_tease",
+                    "stages": [
+                        {
+                            "trigger": "faction_hostile_all",
+                            "special": "unlock_finale_clockwork_tower"
+                        }
+                    ]
+                }
+            ],
+            "special_events": [
+                {
+                    "id": "unlock_finale_clockwork_tower",
+                    "description": "The path to the Clockwork Tower is revealed.",
+                    "effect": {
+                        "unlock_heist": "heist_finale_clockwork_tower"
+                    }
+                }
+            ]
         }
         self.crew_agent = main.CrewAgent(self.game_data['crew_members'], self.game_data['progression'])
         self.tool_agent = main.ToolAgent(self.game_data['tools'])
@@ -46,6 +67,13 @@ class TestGameAgents(unittest.TestCase):
             self.crew_agent,
             self.tool_agent,
             self.city_agent
+        )
+        self.arc_manager = main.ArcManager(
+            self.game_data['campaign_arcs'],
+            self.game_data['narrative_events'],
+            self.game_data['special_events'],
+            self.city_agent,
+            self.crew_agent
         )
 
     # --- CrewAgent Tests ---
@@ -133,6 +161,29 @@ class TestGameAgents(unittest.TestCase):
         heist_agent.run_heist('heist_1', crew_ids, tool_assignments)
 
         self.assertEqual(len(self.city_agent.loot), initial_loot_count)
+
+
+    # --- ArcManager Tests ---
+    def test_final_heist_not_unlocked_on_new_game(self):
+        """Verify the final heist is not unlocked at the start of a new game."""
+        # In a new game, factions are empty. The trigger should not fire.
+        self.arc_manager.check_arcs()
+        self.assertNotIn("heist_finale_clockwork_tower", self.city_agent.unlocked_heists)
+
+    def test_starting_heists_are_unlocked(self):
+        """Verify that a new game starts with the correct heists unlocked."""
+        # The setUp method creates a new CityAgent, which should load starting heists.
+        # This test needs game_data.json to have starting_heists defined.
+        # Let's add it to the test's game_data if it's not there.
+        # This test now relies on the main game_data.json, so we'll load it
+        # to ensure the test is checking the real starting conditions.
+        with open('game_data.json', 'r') as f:
+            game_data = json.load(f)
+
+        city_agent = main.CityAgent(game_data['player'])
+
+        expected_heists = {'heist_1', 'heist_2', 'heist_3', 'heist_4', 'heist_5', 'heist_6'}
+        self.assertEqual(city_agent.unlocked_heists, expected_heists)
 
 
 if __name__ == '__main__':
