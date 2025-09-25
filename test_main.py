@@ -1,6 +1,7 @@
 import unittest
 from unittest.mock import patch, MagicMock
 import main
+import json
 
 class TestGameAgents(unittest.TestCase):
 
@@ -168,6 +169,21 @@ class TestGameAgents(unittest.TestCase):
         # In a new game, factions are empty. The trigger should not fire.
         self.arc_manager.check_arcs()
         self.assertNotIn("heist_finale_clockwork_tower", self.city_agent.unlocked_heists)
+
+    def test_starting_heists_are_unlocked(self):
+        """Verify that a new game starts with the correct heists unlocked."""
+        # The setUp method creates a new CityAgent, which should load starting heists.
+        # This test needs game_data.json to have starting_heists defined.
+        # Let's add it to the test's game_data if it's not there.
+        # This test now relies on the main game_data.json, so we'll load it
+        # to ensure the test is checking the real starting conditions.
+        with open('game_data.json', 'r') as f:
+            game_data = json.load(f)
+
+        city_agent = main.CityAgent(game_data['player'])
+
+        expected_heists = {'heist_1', 'heist_2', 'heist_3', 'heist_4', 'heist_5', 'heist_6'}
+        self.assertEqual(city_agent.unlocked_heists, expected_heists)
 
 
 if __name__ == '__main__':
