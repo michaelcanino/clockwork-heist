@@ -116,7 +116,113 @@ if __name__ == "__main__":
 
 ---
 
-## Next Steps
-- Optionally add inline docstrings for each agent.
-- (Future) Split into true modules once portability is no longer required.
+# QOL / UX Enhancement Plan for `main.py`
+
+This document lists planned Quality of Life (QOL) and User Experience (UX) improvements for **The Clockwork Heist**.
+
+---
+
+## 1. Streamlined Input Handling
+- Add a `get_choice(prompt, options, default=None)` helper.
+- Accept both **shortcuts** (e.g., `Y/N`) and **full words** (`Yes/No`).
+- Allow **defaults** for smoother play.
+
+```python
+def get_choice(prompt, options, default=None):
+    options_map = {o[0].upper(): o for o in options}
+    while True:
+        choice = input(f"{prompt} {options} ").strip().upper()
+        if not choice and default:
+            return default
+        if choice in options_map:
+            return options_map[choice]
+        if choice in [o.upper() for o in options]:
+            return choice.capitalize()
+        print(f"Invalid choice. Try again: {options}")
+```
+
+---
+
+## 2. Colorized Output for Readability
+- Use **Colorama** for cross-platform colored text.
+- Green = Success, Yellow = Partial, Red = Failure, Cyan = Notifications.
+
+```python
+from colorama import Fore, Style
+
+def format_outcome(result, text):
+    if result == "success":
+        return f"{Fore.GREEN}✅ Success: {text}{Style.RESET_ALL}"
+    elif result == "partial":
+        return f"{Fore.YELLOW}⚠️ Partial: {text}{Style.RESET_ALL}"
+    else:
+        return f"{Fore.RED}❌ Failure: {text}{Style.RESET_ALL}"
+```
+
+---
+
+## 3. Crew & Tool Selection UX
+- Replace raw ID typing with **numbered menus**.
+- Use `choose_from_list()` for crew, tools, or heists.
+
+```python
+def choose_from_list(title, items, key="name"):
+    print(f"\n-- {title} --")
+    for i, item in enumerate(items, 1):
+        print(f"[{i}] {item[key]}")
+    while True:
+        try:
+            idx = int(input("Choose number: "))
+            if 1 <= idx <= len(items):
+                return items[idx-1]
+        except ValueError:
+            pass
+        print("Invalid selection, try again.")
+```
+
+---
+
+## 4. Quick Status Summary
+- Show **crew status, notoriety, treasury, loot** before each heist.
+- Helps decision-making without extra menus.
+
+---
+
+## 5. Auto-Save on Exit & Retry
+- Enable **auto-save after every heist**.
+- On startup, prompt: `Continue / New Game`.
+
+---
+
+## 6. Narrative Flow Enhancements
+- Flavor text after key events:
+  - High notoriety → *“The streets whisper your crew’s name...”*
+  - Gained respect → *“Word of honor spreads among the Guilds.”*
+
+---
+
+## 7. Skip Repetitive Prompts
+- Add **settings toggle** in `GameManager`:
+  - `Always Ask`
+  - `Auto-Use` (abilities auto-trigger when optimal)
+
+---
+
+## 8. Dice Roll Transparency
+- Add toggle to **show/hide dice rolls** for immersion.
+- Could be set via `CHEAT_MODE` or a new `DEBUG_MODE` flag.
+
+---
+
+## ✅ Implementation Order
+1. Add helper functions (`get_choice`, `choose_from_list`, `format_outcome`).
+2. Replace `input()` calls in `HeistAgent` and `GameManager`.
+3. Add **status summary panel** before each heist.
+4. Integrate **color-coded outcomes**.
+5. Enable **auto-save after heists**.
+6. Add **narrative flavor lines** for immersion.
+7. Implement **ability auto-use settings**.
+8. Add **dice transparency toggle**.
+
+
 

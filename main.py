@@ -4,7 +4,7 @@
 import json
 import random
 
-CHEAT_MODE = True  # Toggle this to False for normal play
+CHEAT_MODE = False  # Toggle this to False for normal play
 
 
 # ===============================
